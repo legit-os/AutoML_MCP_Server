@@ -1,27 +1,122 @@
 from pathlib import Path
-from typing import Any, Union, Optional, Type
+from enum import Enum
+from typing import Any, Union, Optional, Type, Dict
+from pydantic import BaseModel, Field, model_validator,ValidationError
 import yaml
 from filelock import FileLock
-from pydantic import BaseModel, ValidationError
 import copy
 
 
 YamlDType = Union[str, int, float, bool, None, list, dict]
 
 
-class YamlConfig:
+
+class AnalysisOutputType(str, Enum):
+    table = "table"
+    graph = "graph"
+    list = "list"
+    float = "float"
+
+class AnalysisFile(BaseModel):
+    path: Path
+    output_type: AnalysisOutputType
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+
+class AnyFile(BaseModel):
+    path: Path
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+
+class BaseDirectoryConfig(BaseModel):
+    path: Path
+    files: Dict[str, BaseModel]
+
+    @model_validator(mode="after")
+    def validate_file_structure(self):
+        file_entries = list(self.files.values())
+
+        # If only one file → allow flexibility
+        if len(file_entries) <= 1:
+            return self
+
+        # If multiple files → enforce parent directory rule
+        expected_parent = self.path
+
+        for file in file_entries:
+            file_path = file.path
+
+            # If relative, check first part
+            if not file_path.is_absolute():
+                if file_path.parts[0] != expected_parent.name:
+                    raise ValueError(
+                        f"File '{file_path}' must be inside '{expected_parent}' directory."
+                    )
+            else:
+                # Absolute path case
+                if expected_parent.name not in file_path.parts:
+                    raise ValueError(
+                        f"Absolute file '{file_path}' must contain '{expected_parent}' directory."
+                    )
+
+        return self
+
+
+class DataAnalysisConfig(BaseDirectoryConfig):
+    files: Dict[str, AnalysisFile]
+
+
+class FeatureEngineeringConfig(BaseDirectoryConfig):
+    files: Dict[str, AnyFile]
+
+
+class ModelTrainerConfig(BaseDirectoryConfig):
+    files: Dict[str, AnyFile]
+
+
+class ServingConfig(BaseDirectoryConfig):
+    main: Path
+    files: Dict[str, AnyFile]
+
+    @model_validator(mode="after")
+    def validate_serving(self):
+        super().validate_file_structure()
+
+        file_paths = {file.path for file in self.files.values()}
+
+        if self.main not in file_paths:
+            raise ValueError(
+                "Serving 'main' must match one of the declared file paths."
+            )
+
+        return self
+
+
+class ProjectConfig(BaseModel):
+    project_metadata:Dict
+    data_analysis: DataAnalysisConfig
+    feature_engineering: FeatureEngineeringConfig
+    model_trainer: ModelTrainerConfig
+    serving: ServingConfig
+
+
+class YamlConfig():
     def __init__(self, path: Path, schema: Optional[Type[BaseModel]] = None):
         if not isinstance(path, Path):
             raise TypeError("path must be pathlib.Path object, even str not allowed")
 
         self._path = path
-        
+
         if self._path.is_dir():
             self._path = self._path / "config.yaml"
-        
-        if self._path.suffix not in [".yaml",".yml"]:
-            raise ValueError(f"is this {self._path.suffix} the extention for yaml files?")
-        
+
+        if self._path.suffix not in [".yaml", ".yml"]:
+            raise ValueError(
+                f"is this {self._path.suffix} the extention for yaml files?"
+            )
+
         self._schema = schema
         self._lock = FileLock(str(self._path) + ".lock")
 
@@ -35,7 +130,6 @@ class YamlConfig:
         self._dirty = False
         self._changes = []
         self._in_transaction = False
-
 
     def _load(self) -> dict:
         with self._lock:
@@ -63,11 +157,7 @@ class YamlConfig:
         ref[keys[-1]] = value
 
         self._dirty = True
-        self._changes.append({
-            "key": key,
-            "old": old_value,
-            "new": value
-        })
+        self._changes.append({"key": key, "old": old_value, "new": value})
 
     def _get_nested(self, key: str, default=None):
         keys = key.split(".")
@@ -79,7 +169,6 @@ class YamlConfig:
             ref = ref[k]
 
         return ref
-
 
     def update(self, key: str, value: YamlDType):
         self._set_nested(key, value)
@@ -100,16 +189,9 @@ class YamlConfig:
             old = ref[keys[-1]]
             del ref[keys[-1]]
             self._dirty = True
-            self._changes.append({
-                "key": key,
-                "old": old,
-                "new": None
-            })
+            self._changes.append({"key": key, "old": old, "new": None})
 
     def save(self):
-        """
-        Explicit commit.
-        """
         if not self._dirty:
             return
 
@@ -117,12 +199,7 @@ class YamlConfig:
 
         with self._lock:
             with self._path.open("w", encoding="utf-8") as f:
-                yaml.safe_dump(
-                    self._data,
-                    f,
-                    sort_keys=False,
-                    default_flow_style=False
-                )
+                yaml.safe_dump(self._data, f, sort_keys=False, default_flow_style=False)
 
         self._original_data = copy.deepcopy(self._data)
         self._dirty = False
@@ -136,7 +213,6 @@ class YamlConfig:
     def changes(self):
         return self._changes.copy()
 
-  
     def __enter__(self):
         self._in_transaction = True
         self._transaction_backup = copy.deepcopy(self._data)
@@ -149,7 +225,7 @@ class YamlConfig:
             self._data = self._transaction_backup
             self._dirty = False
             self._changes.clear()
-            return False  
+            return False
 
     def __repr__(self):
         return (
