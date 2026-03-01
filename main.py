@@ -1,6 +1,3 @@
-def main():
-    print("Hello from automl-mcp!")
+import pydantic
 
-
-if __name__ == "__main__":
-    main()
+print(pydantic.version)

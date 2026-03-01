@@ -1,7 +1,7 @@
 from pathlib import Path
 from enum import Enum
-from typing import Any, Callable, List, Union, Optional, Type, Dict
-from pydantic import BaseModel, Field, model_validator,ValidationError
+from typing import Any, Literal, Union, Optional, Type, Dict, List
+from pydantic import BaseModel, Field, model_validator, ValidationError
 import yaml
 from filelock import FileLock
 import copy
@@ -10,140 +10,58 @@ import copy
 YamlDType = Union[str, int, float, bool, None, list, dict]
 
 
-class AnalysisOutputType(str, Enum):
-    table = "table"
-    graph = "graph"
-    list = "list"
-    float = "float"
-    
-
-class ExecuteType(str, Enum):
-    function = "function"
-    class_method = "class_method"
-    
-    
-    
-    
-    
-    
-class InputSource(str, Enum):
-    file = "file"
-    unit_output = "unit_output"
-    literal = "literal"
-    config = "config"
-    env = "env"
-
-
-
-
 class AnalysisFile(BaseModel):
-    path: Path
-    output_type: AnalysisOutputType
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
+    path: Optional[Path] = None
+    output_type: Optional[Literal["table", "graph", "list", "float"]] = None
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+class AnalysisConfig(BaseModel):
+    path: Optional[Path] = None
+    files: Optional[Dict[str, AnalysisFile]] = Field(default_factory=dict)
+
+
 class UtilsFile(BaseModel):
-    path: Path
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    
-    
-    
-    
-class InputDefinition(BaseModel):
-    type: str
-    source: InputSource
-
-    value: Optional[Any] = None
-
-    reference: Optional[str] = None
-
-    @model_validator(mode="after")
-    def validate_input(self):
-        if self.source in [InputSource.file, InputSource.literal]:
-            if self.value is None:
-                raise ValueError("Input with source 'file' or 'literal' must define 'value'.")
-
-        if self.source == InputSource.unit_output:
-            if self.reference is None:
-                raise ValueError("Input with source 'unit_output' must define 'reference'.")
-
-        return self
-
-class OutputDefinition(BaseModel):
-    type: str
-    persist: bool = False
-    save_as: Optional[Path] = None
-
-    @model_validator(mode="after")
-    def validate_output(self):
-        if self.persist and self.save_as is None:
-            raise ValueError("Persisted outputs must define 'save_as'.")
-        return self
-    
-    
+    path: Optional[Path] = None
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-class ExecuteDefinition(BaseModel):
-    type: ExecuteType
-    symbol: Optional[str] = None
-    class_name: Optional[str] = None
-    method: Optional[str] = None
-
-    @model_validator(mode="after")
-    def validate_execute(self):
-        if self.type == ExecuteType.function:
-            if not self.symbol:
-                raise ValueError("Function execution requires 'symbol'.")
-
-        if self.type == ExecuteType.class_method:
-            if not self.class_name or not self.method:
-                raise ValueError("Class method execution requires 'class_name' and 'method'.")
-
-        return self
+class UtilsConfig(BaseModel):
+    path: Optional[Path] = None
+    files: Optional[Dict[str, UtilsFile]] = Field(default_factory=dict)
 
 
+class PipelineElement(BaseModel):
+    path: Optional[Path] = None
+
+    depends_on: Optional[List[str]] = Field(default_factory=list)
+
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
+class PipelineStage(BaseModel):
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
-class PipelineUnit(BaseModel):
-    path: Path
-
-    execute: ExecuteDefinition
-
-    inputs: Dict[str, InputDefinition] = Field(default_factory=dict)
-    outputs: Dict[str, OutputDefinition] = Field(default_factory=dict)
-
-    depends_on: List[str] = Field(default_factory=list)
-
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-
+    elements: Optional[Dict[str, PipelineElement]] = Field(default_factory=dict)
 
 
 class PipelineConfig(BaseModel):
-    units: Dict[str, PipelineUnit]
-
-class AnalysisConfig(BaseModel):
-    path: Path
-    files: Dict[str, AnalysisFile]
-
-class UtilsConfig(BaseModel):
-    path: Path
-    files: Dict[str, UtilsFile]
+    stages: Optional[Dict[str, PipelineStage]] = Field(default_factory=dict)
 
 
-
-
-#-------------------------------------
+# -------------------------------------
 class ProjectManifest(BaseModel):
-    analysis: AnalysisConfig
-    utils: UtilsConfig
-    pipeline: PipelineConfig
-    
-#------------------------------------
+    analysis: Optional[AnalysisConfig] = None
+    utils: Optional[UtilsConfig] = None
+    pipeline: Optional[PipelineConfig] = None
 
-class YamlConfig():
+
+# ------------------------------------
+
+
+
+
+class YamlConfig:
     def __init__(self, path: Path, schema: Optional[Type[BaseModel]] = None):
         if not isinstance(path, Path):
             raise TypeError("path must be pathlib.Path object, even str not allowed")
@@ -277,3 +195,177 @@ class YamlConfig():
 
     def __str__(self):
         return yaml.safe_dump(self._data, sort_keys=False)
+
+
+
+
+
+
+
+class YamlManager():
+    def __init__(self,config : YamlConfig):
+        self._config = config
+    
+    
+    def update_utils(
+        self,
+        name: str,
+        path: Optional[Path] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        config = self._config
+
+        with config as cfg:
+            if cfg.get("utils") is None:
+                cfg.update("utils", {})
+
+            if cfg.get("utils.files") is None:
+                cfg.update("utils.files", {})
+
+            if path is not None:
+                cfg.update(f"utils.files.{name}.path", path.as_posix())
+
+            if metadata is not None:
+                cfg.update(f"utils.files.{name}.metadata", metadata)
+                
+    def delete_utils(self, name: str):
+        config = self._config
+        with config as cfg:
+            cfg.delete(f"utils.files.{name}")
+            
+    
+    
+    
+
+
+    def update_analysis(
+        self,
+        name: str,
+        path: Optional[Path] = None,
+        output_type: Optional[Literal["table", "graph", "list", "float"]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        config = self._config
+
+        with config as cfg:
+            if cfg.get("analysis") is None:
+                cfg.update("analysis", {})
+
+            if cfg.get("analysis.files") is None:
+                cfg.update("analysis.files", {})
+
+            if path is not None:
+                cfg.update(f"analysis.files.{name}.path", path.as_posix())
+
+            if output_type is not None:
+                cfg.update(f"analysis.files.{name}.output_type", output_type)
+
+            if metadata is not None:
+                cfg.update(f"analysis.files.{name}.metadata", metadata)
+                
+    def delete_analysis(self, name: str):
+        config = self._config
+        with config as cfg:
+            cfg.delete(f"analysis.files.{name}")
+            
+
+
+
+    def update_pipeline(
+        self,
+        stage: str,
+        name: str,
+        path: Optional[Path] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        depends_on: Optional[List[str]] = None,
+    ):
+
+        with self._config as cfg:
+
+            if cfg.get("pipeline") is None:
+                cfg.update("pipeline", {})
+
+            if cfg.get("pipeline.stages") is None:
+                cfg.update("pipeline.stages", {})
+
+            if cfg.get(f"pipeline.stages.{stage}") is None:
+                cfg.update(f"pipeline.stages.{stage}", {})
+
+            if cfg.get(f"pipeline.stages.{stage}.elements") is None:
+                cfg.update(f"pipeline.stages.{stage}.elements", {})
+
+
+            if depends_on:
+                for dep in depends_on:
+                    if not isinstance(dep, str):
+                        raise ValueError(f"Invalid dependency format: {dep}")
+
+                    if "." not in dep:
+                        raise ValueError(
+                            f"Dependency '{dep}' must be in format 'stage.element' or 'utils.file'"
+                        )
+
+                    dep_stage, dep_name = dep.split(".", 1)
+
+                    if dep_stage == stage and dep_name == name:
+                        raise ValueError("Element cannot depend on itself.")
+
+                    if dep_stage == "utils":
+                        if cfg.get(f"utils.files.{dep_name}") is None:
+                            raise ValueError(
+                                f"Dependency '{dep}' does not exist in utils."
+                            )
+
+                    else:
+                        if cfg.get(f"pipeline.stages.{dep_stage}") is None:
+                            raise ValueError(
+                                f"Dependency stage '{dep_stage}' does not exist."
+                            )
+                        if (
+                            cfg.get(
+                                f"pipeline.stages.{dep_stage}.elements.{dep_name}"
+                            )
+                            is None
+                        ):
+                            raise ValueError(
+                                f"Dependency element '{dep}' does not exist."
+                            )
+
+
+            element_base = f"pipeline.stages.{stage}.elements.{name}"
+
+            if path is not None:
+                cfg.update(f"{element_base}.path", path.as_posix())
+
+            if metadata is not None:
+                cfg.update(f"{element_base}.metadata", metadata)
+
+            if depends_on is not None:
+                cfg.update(f"{element_base}.depends_on", depends_on)
+                
+    def delete_element(self, stage: str, name: str):
+        with self._config as cfg:
+
+            element_key = f"pipeline.stages.{stage}.elements.{name}"
+            if cfg.get(element_key) is None:
+                raise ValueError(f"Element '{stage}.{name}' does not exist.")
+
+            target_full_name = f"{stage}.{name}"
+
+            stages = cfg.get("pipeline.stages", {})
+
+            for s_name, stage_data in stages.items():
+
+                elements = stage_data.get("elements", {})
+
+                for e_name, element_data in elements.items():
+
+                    depends = element_data.get("depends_on", [])
+
+                    if target_full_name in depends:
+                        raise ValueError(
+                            f"Cannot delete '{target_full_name}'. "
+                            f"It is required by '{s_name}.{e_name}'."
+                        )
+
+            cfg.delete(element_key)
