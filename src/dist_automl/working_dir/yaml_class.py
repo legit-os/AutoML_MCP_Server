@@ -10,13 +10,6 @@ import copy
 YamlDType = Union[str, int, float, bool, None, list, dict]
 
 
-
-class Dependency(BaseModel):
-    file: str              
-    symbol: str            
-    method: Optional[str] = None  
-    
-
 class AnalysisOutputType(str, Enum):
     table = "table"
     graph = "graph"
@@ -24,90 +17,131 @@ class AnalysisOutputType(str, Enum):
     float = "float"
     
 
+class ExecuteType(str, Enum):
+    function = "function"
+    class_method = "class_method"
+    
+    
+    
+    
+    
+    
+class InputSource(str, Enum):
+    file = "file"
+    unit_output = "unit_output"
+    literal = "literal"
+    config = "config"
+    env = "env"
 
-class UtilsFile(BaseModel):
-    path: Path
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+
 
 
 class AnalysisFile(BaseModel):
     path: Path
     output_type: AnalysisOutputType
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class DependentFile(BaseModel):
+    
+class UtilsFile(BaseModel):
     path: Path
-    depends: List[Dependency] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    
+    
+    
+    
+class InputDefinition(BaseModel):
+    type: str
+    source: InputSource
+
+    value: Optional[Any] = None
+
+    reference: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_input(self):
+        if self.source in [InputSource.file, InputSource.literal]:
+            if self.value is None:
+                raise ValueError("Input with source 'file' or 'literal' must define 'value'.")
+
+        if self.source == InputSource.unit_output:
+            if self.reference is None:
+                raise ValueError("Input with source 'unit_output' must define 'reference'.")
+
+        return self
+
+class OutputDefinition(BaseModel):
+    type: str
+    persist: bool = False
+    save_as: Optional[Path] = None
+
+    @model_validator(mode="after")
+    def validate_output(self):
+        if self.persist and self.save_as is None:
+            raise ValueError("Persisted outputs must define 'save_as'.")
+        return self
+    
+    
+
+
+class ExecuteDefinition(BaseModel):
+    type: ExecuteType
+    symbol: Optional[str] = None
+    class_name: Optional[str] = None
+    method: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_execute(self):
+        if self.type == ExecuteType.function:
+            if not self.symbol:
+                raise ValueError("Function execution requires 'symbol'.")
+
+        if self.type == ExecuteType.class_method:
+            if not self.class_name or not self.method:
+                raise ValueError("Class method execution requires 'class_name' and 'method'.")
+
+        return self
+
+
+
+
+
+class PipelineUnit(BaseModel):
+    path: Path
+
+    execute: ExecuteDefinition
+
+    inputs: Dict[str, InputDefinition] = Field(default_factory=dict)
+    outputs: Dict[str, OutputDefinition] = Field(default_factory=dict)
+
+    depends_on: List[str] = Field(default_factory=list)
+
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 
-class BaseDirectoryConfig(BaseModel):
+
+
+class PipelineConfig(BaseModel):
+    units: Dict[str, PipelineUnit]
+
+class AnalysisConfig(BaseModel):
     path: Path
-    files: Dict[str, BaseModel]
+    files: Dict[str, AnalysisFile]
 
-    @model_validator(mode="after")
-    def validate_multiple_files_parent(self):
-        if len(self.files) <= 1:
-            return self
-
-        expected_dir = self.path.name
-
-        for file in self.files.values():
-            file_path = file.path
-
-            if not file_path.is_absolute():
-                if file_path.parts[0] != expected_dir:
-                    raise ValueError(
-                        f"File '{file_path}' must be inside '{expected_dir}' directory."
-                    )
-            else:
-                if expected_dir not in file_path.parts:
-                    raise ValueError(
-                        f"Absolute file '{file_path}' must contain '{expected_dir}'."
-                    )
-
-        return self
-    
-class UtilsConfig(BaseDirectoryConfig):
+class UtilsConfig(BaseModel):
+    path: Path
     files: Dict[str, UtilsFile]
 
 
-class DataAnalysisConfig(BaseDirectoryConfig):
-    files: Dict[str, AnalysisFile]
 
 
-class FeatureEngineeringConfig(BaseDirectoryConfig):
-    files: Dict[str, DependentFile]
-
-
-class ModelTrainerConfig(BaseDirectoryConfig):
-    files: Dict[str, DependentFile]
-
-
-class ServingConfig(BaseDirectoryConfig):
-    main: Path
-    files: Dict[str, DependentFile]
-
-    @model_validator(mode="after")
-    def validate_main(self):
-        file_paths = {file.path for file in self.files.values()}
-        if self.main not in file_paths:
-            raise ValueError("Serving 'main' must match one of the declared file paths.")
-        return self
-    
+#-------------------------------------
 class ProjectManifest(BaseModel):
-    utils: Optional[Type[UtilsConfig]] = None
-    data_analysis: Optional[Type[DataAnalysisConfig]] = None
-    feature_engineering: Optional[Type[FeatureEngineeringConfig]] = None
-    model_trainer: Optional[Type[ModelTrainerConfig]] = None
-    serving: Optional[Type[ServingConfig]] = None
+    analysis: AnalysisConfig
+    utils: UtilsConfig
+    pipeline: PipelineConfig
     
-    
-    
-    
-    
+#------------------------------------
 
 class YamlConfig():
     def __init__(self, path: Path, schema: Optional[Type[BaseModel]] = None):

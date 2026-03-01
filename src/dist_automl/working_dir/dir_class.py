@@ -2,8 +2,6 @@ from pathlib import Path
 from typing import Optional
 from dist_automl.working_dir.yaml_class import YamlConfig
 
-directories = ["data_analysis", "feature_engineering", "model_trainer", "serving"]
-
 
 class WorkingDirectory:
     def __init__(
