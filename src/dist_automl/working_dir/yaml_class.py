@@ -1,6 +1,6 @@
 from pathlib import Path
 from enum import Enum
-from typing import Any, Union, Optional, Type, Dict
+from typing import Any, Callable, List, Union, Optional, Type, Dict
 from pydantic import BaseModel, Field, model_validator,ValidationError
 import yaml
 from filelock import FileLock
@@ -11,22 +11,35 @@ YamlDType = Union[str, int, float, bool, None, list, dict]
 
 
 
+class Dependency(BaseModel):
+    file: str              
+    symbol: str            
+    method: Optional[str] = None  
+    
+
 class AnalysisOutputType(str, Enum):
     table = "table"
     graph = "graph"
     list = "list"
     float = "float"
+    
+
+
+class UtilsFile(BaseModel):
+    path: Path
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
 
 class AnalysisFile(BaseModel):
     path: Path
     output_type: AnalysisOutputType
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-
-class AnyFile(BaseModel):
+class DependentFile(BaseModel):
     path: Path
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    depends: List[Dependency] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 
@@ -35,33 +48,30 @@ class BaseDirectoryConfig(BaseModel):
     files: Dict[str, BaseModel]
 
     @model_validator(mode="after")
-    def validate_file_structure(self):
-        file_entries = list(self.files.values())
-
-        # If only one file → allow flexibility
-        if len(file_entries) <= 1:
+    def validate_multiple_files_parent(self):
+        if len(self.files) <= 1:
             return self
 
-        # If multiple files → enforce parent directory rule
-        expected_parent = self.path
+        expected_dir = self.path.name
 
-        for file in file_entries:
+        for file in self.files.values():
             file_path = file.path
 
-            # If relative, check first part
             if not file_path.is_absolute():
-                if file_path.parts[0] != expected_parent.name:
+                if file_path.parts[0] != expected_dir:
                     raise ValueError(
-                        f"File '{file_path}' must be inside '{expected_parent}' directory."
+                        f"File '{file_path}' must be inside '{expected_dir}' directory."
                     )
             else:
-                # Absolute path case
-                if expected_parent.name not in file_path.parts:
+                if expected_dir not in file_path.parts:
                     raise ValueError(
-                        f"Absolute file '{file_path}' must contain '{expected_parent}' directory."
+                        f"Absolute file '{file_path}' must contain '{expected_dir}'."
                     )
 
         return self
+    
+class UtilsConfig(BaseDirectoryConfig):
+    files: Dict[str, UtilsFile]
 
 
 class DataAnalysisConfig(BaseDirectoryConfig):
@@ -69,38 +79,35 @@ class DataAnalysisConfig(BaseDirectoryConfig):
 
 
 class FeatureEngineeringConfig(BaseDirectoryConfig):
-    files: Dict[str, AnyFile]
+    files: Dict[str, DependentFile]
 
 
 class ModelTrainerConfig(BaseDirectoryConfig):
-    files: Dict[str, AnyFile]
+    files: Dict[str, DependentFile]
 
 
 class ServingConfig(BaseDirectoryConfig):
     main: Path
-    files: Dict[str, AnyFile]
+    files: Dict[str, DependentFile]
 
     @model_validator(mode="after")
-    def validate_serving(self):
-        super().validate_file_structure()
-
+    def validate_main(self):
         file_paths = {file.path for file in self.files.values()}
-
         if self.main not in file_paths:
-            raise ValueError(
-                "Serving 'main' must match one of the declared file paths."
-            )
-
+            raise ValueError("Serving 'main' must match one of the declared file paths.")
         return self
-
-
-class ProjectConfig(BaseModel):
-    project_metadata:Dict
+    
+class ProjectManifest(BaseModel):
+    utils: UtilsConfig
     data_analysis: DataAnalysisConfig
     feature_engineering: FeatureEngineeringConfig
     model_trainer: ModelTrainerConfig
     serving: ServingConfig
-
+    
+    
+    
+    
+    
 
 class YamlConfig():
     def __init__(self, path: Path, schema: Optional[Type[BaseModel]] = None):
