@@ -98,11 +98,11 @@ class ServingConfig(BaseDirectoryConfig):
         return self
     
 class ProjectManifest(BaseModel):
-    utils: UtilsConfig
-    data_analysis: DataAnalysisConfig
-    feature_engineering: FeatureEngineeringConfig
-    model_trainer: ModelTrainerConfig
-    serving: ServingConfig
+    utils: Optional[Type[UtilsConfig]] = None
+    data_analysis: Optional[Type[DataAnalysisConfig]] = None
+    feature_engineering: Optional[Type[FeatureEngineeringConfig]] = None
+    model_trainer: Optional[Type[ModelTrainerConfig]] = None
+    serving: Optional[Type[ServingConfig]] = None
     
     
     
