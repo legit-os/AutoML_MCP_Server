@@ -21,6 +21,9 @@ class AnalysisConfig(BaseModel):
     files: Optional[Dict[str, AnalysisFile]] = Field(default_factory=dict)
 
 
+
+
+
 class UtilsFile(BaseModel):
     path: Optional[Path] = None
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -29,6 +32,10 @@ class UtilsFile(BaseModel):
 class UtilsConfig(BaseModel):
     path: Optional[Path] = None
     files: Optional[Dict[str, UtilsFile]] = Field(default_factory=dict)
+
+
+
+
 
 
 class PipelineElement(BaseModel):
@@ -49,6 +56,8 @@ class PipelineConfig(BaseModel):
     stages: Optional[Dict[str, PipelineStage]] = Field(default_factory=dict)
 
 
+
+
 # -------------------------------------
 class ProjectManifest(BaseModel):
     analysis: Optional[AnalysisConfig] = None
@@ -62,7 +71,7 @@ class ProjectManifest(BaseModel):
 
 
 class YamlConfig:
-    def __init__(self, path: Path, schema: Optional[Type[BaseModel]] = None):
+    def __init__(self, path: Path, schema: Optional[Type[BaseModel]] = ProjectManifest):
         if not isinstance(path, Path):
             raise TypeError("path must be pathlib.Path object, even str not allowed")
 
@@ -149,6 +158,7 @@ class YamlConfig:
             del ref[keys[-1]]
             self._dirty = True
             self._changes.append({"key": key, "old": old, "new": None})
+            
 
     def save(self):
         if not self._dirty:
@@ -181,10 +191,10 @@ class YamlConfig:
         self._in_transaction = False
 
         if exc_type is not None:
-            self._data = self._transaction_backup
-            self._dirty = False
-            self._changes.clear()
+            self.rollback()
             return False
+        else:
+            self.save()
 
     def __repr__(self):
         return (
@@ -199,7 +209,7 @@ class YamlConfig:
 
 
 
-
+#--------------------------------------------------------------------
 
 
 class YamlManager():

@@ -3,16 +3,6 @@ from pathlib import Path
 from dist_automl.working_dir.yaml_class import YamlConfig,YamlManager
 
 def test_complete_ml_project(tmp_path):
-    """
-    Integration-style test:
-    Builds a full ML project config with:
-
-    - 5 utils
-    - 3 analysis files
-    - 6 pipeline elements
-    - Valid dependencies
-    """
-
     config_path = tmp_path / "full_project.yaml"
     config = YamlConfig(config_path)
     manager = YamlManager(config)
@@ -93,7 +83,6 @@ def test_complete_ml_project(tmp_path):
     )
 
 
-    config.save()
 
     assert len(config.get("utils.files")) == 5
 
