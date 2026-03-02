@@ -184,7 +184,7 @@ class YamlConfig:
 
     def __enter__(self):
         self._in_transaction = True
-        self._transaction_backup = copy.deepcopy(self._data)
+        # self._transaction_backup = copy.deepcopy(self._data)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -223,9 +223,9 @@ class YamlManager():
         path: Optional[Path] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        config = self._config
+            cfg = self._config
 
-        with config as cfg:
+        
             if cfg.get("utils") is None:
                 cfg.update("utils", {})
 
@@ -239,8 +239,8 @@ class YamlManager():
                 cfg.update(f"utils.files.{name}.metadata", metadata)
                 
     def delete_utils(self, name: str):
-        config = self._config
-        with config as cfg:
+            cfg = self._config
+        
             cfg.delete(f"utils.files.{name}")
             
     
@@ -255,9 +255,9 @@ class YamlManager():
         output_type: Optional[Literal["table", "graph", "list", "float"]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        config = self._config
+            cfg = self._config
 
-        with config as cfg:
+        
             if cfg.get("analysis") is None:
                 cfg.update("analysis", {})
 
@@ -274,8 +274,8 @@ class YamlManager():
                 cfg.update(f"analysis.files.{name}.metadata", metadata)
                 
     def delete_analysis(self, name: str):
-        config = self._config
-        with config as cfg:
+            cfg = self._config
+        
             cfg.delete(f"analysis.files.{name}")
             
 
@@ -290,7 +290,7 @@ class YamlManager():
         depends_on: Optional[List[str]] = None,
     ):
 
-        with self._config as cfg:
+            cfg = self._config
 
             if cfg.get("pipeline") is None:
                 cfg.update("pipeline", {})
@@ -354,7 +354,7 @@ class YamlManager():
                 cfg.update(f"{element_base}.depends_on", depends_on)
                 
     def delete_element(self, stage: str, name: str):
-        with self._config as cfg:
+            cfg = self._config
 
             element_key = f"pipeline.stages.{stage}.elements.{name}"
             if cfg.get(element_key) is None:
@@ -379,3 +379,27 @@ class YamlManager():
                         )
 
             cfg.delete(element_key)
+            
+    def __enter__(self):
+        self._config._in_transaction = True
+        # self._config._transaction_backup = copy.deepcopy(self._config._data)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._config._in_transaction = False
+
+        if exc_type is not None:
+            self._config.rollback()
+            return False
+        else:
+            self._config.save()
+
+    def __repr__(self):
+        return (
+            f"YamlConfig(path='{self._config._path}', "
+            f"keys={list(self._config._data.keys())}, "
+            f"dirty={self._config._dirty})"
+        )
+
+    def __str__(self):
+        return yaml.safe_dump(self._config._data, sort_keys=False)
