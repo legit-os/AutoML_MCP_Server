@@ -1,49 +1,78 @@
 from pathlib import Path
 from typing import Optional
-from dist_automl.working_dir.yaml_class import YamlConfig
+
+from dist_automl.working_dir.yaml_class import YamlConfig, YamlManager
 
 
 class WorkingDirectory:
+    BASE_FOLDERS = ("analysis", "utils", "pipeline")
+
     def __init__(
-        self, path: Path, config_file_name: Path | None, exist_ok: bool = False
-    ) -> None:
-        if not isinstance(path, Path):
-            raise TypeError("path must be pathlib.Path object")
+        self,
+        project_root: Path,
+        config_path: Optional[Path] = None,
+        exist_ok: bool = True,
+    ):
+        if not isinstance(project_root, Path):
+            raise TypeError("project_root must be a pathlib.Path")
 
-        if not isinstance(config_file_name, Path):
-            raise TypeError("config_path must be pathlib.Path object")
+        project_root = project_root.expanduser().resolve()
 
-        if not isinstance(exist_ok, bool):
-            raise TypeError(
-                "exist_ok must be a boolean, it is the same parameter that mkdir method takes"
-            )
+        if not project_root.is_absolute():
+            raise ValueError("project_root must be an absolute path")
 
-        if not path.is_absolute():
-            raise ValueError("expected absolute path")
 
-        self._path: Path = path
-        self._config_path: Path = self._path / config_file_name.name
 
-        if not self._path.is_dir():
-            raise NotADirectoryError(f"Provided path is not a directory: {self._path}")
-        self._path.mkdir(parents=True, exist_ok=exist_ok)
+
+        self._root = project_root
+        self._root.mkdir(parents=True, exist_ok=exist_ok)
+
+        self._ensure_base_structure()
+
+
+
+
+
+        if config_path is None:
+            config_path = self._root / "config.yaml"
+        else:
+            if not isinstance(config_path, Path):
+                raise TypeError("config_path must be a pathlib.Path")
+
+            if not config_path.is_absolute():
+                config_path = self._root / config_path
+
+            config_path = config_path.resolve()
+
+        if config_path.suffix not in (".yaml", ".yml"):
+            raise ValueError("Config file must have .yaml or .yml extension")
+
+        self._config_path = config_path
 
         self._config = YamlConfig(self._config_path)
 
-    def create_file(self, relative_path: Path, content: Optional[str] = None) -> Path:
-        pass
+        self._manager = YamlManager(self._config)
 
-    def run_file(self, relative_path: Path) -> None:
-        pass
 
-    def delete_file(self, relative_path: Path) -> None:
-        pass
 
-    def list_files(self) -> list[Path]:
-        pass
+    def _ensure_base_structure(self) -> None:
+        for folder in self.BASE_FOLDERS:
+            (self._root / folder).mkdir(parents=True, exist_ok=True)
 
-    def get_config(self):
-        pass
 
-    def update_config(self):
-        pass
+
+
+    @property
+    def root(self) -> Path:
+        return self._root
+
+    @property
+    def config(self) -> YamlConfig:
+        return self._config
+
+    @property
+    def manager(self) -> YamlManager:
+        return self._manager
+    
+    
+    
