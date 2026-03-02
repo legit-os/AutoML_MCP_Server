@@ -9,3 +9,5 @@ wheels/
 # Virtual environments
 .venv
 ignore
+.pytest_cache
+.ruff_cache

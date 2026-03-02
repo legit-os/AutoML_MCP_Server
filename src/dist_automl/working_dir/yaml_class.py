@@ -382,7 +382,6 @@ class YamlManager():
             
     def __enter__(self):
         self._config._in_transaction = True
-        # self._config._transaction_backup = copy.deepcopy(self._config._data)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -403,3 +402,77 @@ class YamlManager():
 
     def __str__(self):
         return yaml.safe_dump(self._config._data, sort_keys=False)
+    
+
+
+    def check_project_sync(self, project_root: Path) -> List[str]:
+        config = self._config
+
+        warnings = []
+
+        if not isinstance(project_root, Path):
+            warnings.append("Project root is not a valid Path object.")
+            return warnings
+
+        if not project_root.exists():
+            warnings.append(f"Project root does not exist: {project_root}")
+            return warnings
+
+        def resolve_path(p: str) -> Path:
+            path_obj = Path(p)
+            if path_obj.is_absolute():
+                return path_obj
+            return project_root / path_obj
+
+        utils_files = config.get("utils.files", {}) or {}
+
+        for name, data in utils_files.items():
+            file_path = data.get("path")
+
+            if not file_path:
+                warnings.append(f"Utils '{name}' has no path defined.")
+                continue
+
+            resolved = resolve_path(file_path)
+
+            if not resolved.exists():
+                warnings.append(f"Utils file missing: {resolved}")
+
+        analysis_files = config.get("analysis.files", {}) or {}
+
+        for name, data in analysis_files.items():
+            file_path = data.get("path")
+
+            if not file_path:
+                warnings.append(f"Analysis '{name}' has no path defined.")
+                continue
+
+            resolved = resolve_path(file_path)
+
+            if not resolved.exists():
+                warnings.append(f"Analysis file missing: {resolved}")
+
+        stages = config.get("pipeline.stages", {}) or {}
+
+        for stage_name, stage_data in stages.items():
+            elements = stage_data.get("elements", {}) or {}
+
+            for element_name, element_data in elements.items():
+
+                file_path = element_data.get("path")
+
+                if not file_path:
+                    warnings.append(
+                        f"Pipeline element '{stage_name}.{element_name}' has no path defined."
+                    )
+                    continue
+
+                resolved = resolve_path(file_path)
+
+                if not resolved.exists():
+                    warnings.append(
+                        f"Pipeline file missing: {resolved} "
+                        f"(declared in {stage_name}.{element_name})"
+                    )
+
+        return warnings
