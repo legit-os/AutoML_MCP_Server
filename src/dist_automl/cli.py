@@ -1,15 +1,97 @@
 import typer
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional,List,Dict
 
 from dist_automl.managers.project_manager import ProjectJSON
 
+
+
+
+projects_config = ProjectJSON()
+
 app = typer.Typer(name="Auto ML Manager")
 
-@app.command()
+
+
+
+def parse_key_value(settings: List[str]) -> Dict[str, str]:
+    items = {}
+    for item in settings:
+        try:
+            key, value = item.split("=", 1)
+            items[key] = value
+        except ValueError:
+            typer.echo(f"Warning: Skipping invalid pair '{item}' (must be key=value)")
+    return items
+
+
+
+
+@app.command(help="List all projects")
+def list(all =  typer.Option("-a","--all")):
+    global projects_config
+    
+    if not all:
+        typer.echo([p for p in projects_config.list_projects() if not p.deleted ])
+    else :
+        typer.echo(projects_config.list_projects())
+    
+    
+@app.command(help="Find and see a specific project by name")
+def show(name: Optional[str] = None):
+    global projects_config
+    if name is None:
+        typer.echo(projects_config.list_projects())
+    else :
+        project = [p for p in projects_config.list_projects() if p.name == name] 
+        if len(project) == 0:
+            typer.echo(f"No projects found for the name : {name}")
+        else :
+            typer.echo(project) 
+
+
+
+
+@app.command(help=
+             """
+             Initialize a directory for Auto ML to track.
+             Along with Path and Name, you can provide other metadata objects with "--meta key=value" for the project
+             If the project already exists it will be be updated if overwrite argument is True
+             """)
 def init(path: Annotated[Path, typer.Argument(help="Directory to initialize and track",
                                               file_okay=False,dir_okay=True,writable=True,
-                                              resolve_path=True)] = Path(".")):
-    projects_config = ProjectJSON()
+                                              resolve_path=True)] = Path("."),
+         name : Optional[Annotated[str,"Name of the project"]] = None,
+         overwrite : Annotated[bool, typer.Option("--overwrite", "-o")] = False,
+         metadata: Annotated[Optional[List[str]], typer.Option("--meta","-m", help="Key-value pairs like -m k=v")] = None
+         ):
+    global projects_config    
+    project_name = path.name if name is None else name
     
-    projects_config.add_or_update(name=path.name)
+    metadata = parse_key_value(metadata or [])
+    
+    
+    if  (path in [p.root for p in projects_config.list_projects() if not p.deleted]):
+        if (project_name in [p.name for p in projects_config.list_projects() if not p.deleted]):
+            
+        
+            typer.echo(f"Warning: Project already exists at {path} with name: {project_name}.\n")
+            
+            if overwrite is False:
+                conf = typer.confirm("Do you want to overwrite one the project details")
+                if conf:
+                        projects_config.add_or_update(name=project_name, root=path,metadata=metadata,overwrite=True)
+                else :
+                    typer.Exit(0)
+            else:
+                typer.echo("Overwritting the project details")
+                projects_config.add_or_update(name=project_name, root=path,metadata=metadata,overwrite=True)
+        else:
+            typer.echo("Name of a project can't be changed. All projects have unique name and location")
+    else:
+        projects_config.add_or_update(name=project_name, root=path,metadata=metadata)
+        
+if __name__ == "__main__":
+    app()
+        
+        

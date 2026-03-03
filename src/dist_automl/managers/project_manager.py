@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import shutil
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -11,10 +12,18 @@ class ProjectDict(BaseModel):
     deleted: bool = False
     metadata: Dict = Field(default_factory=dict)
 
+    def __repr__(self):
+        des =  f"""
+        name: {self.name},
+        directory: {str(self.root)}
+        metadata: {self.metadata if self.metadata is None else "None"}
+        """
+        return des
 
 class ProjectsConfig(BaseModel):
     projects: List[ProjectDict] = Field(default_factory=list)
     uv_path: Optional[Path] = None
+    
 
 
 #-----------------------------------------------------------
@@ -36,7 +45,9 @@ class ProjectJSON:
             self._save()
         else:
             self._load()
-
+            
+        if self.project_config.uv_path is None:
+            uv_path = shutil.which("uv")
 
     def _load(self):
         try:
@@ -63,7 +74,6 @@ class ProjectJSON:
             if project.name == name:
                 return idx
         return None
-
 
     def add_or_update(
         self,
