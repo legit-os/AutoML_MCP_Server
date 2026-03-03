@@ -32,9 +32,9 @@ def list(all =  typer.Option("-a","--all")):
     global projects_config
     
     if not all:
-        typer.echo([p for p in projects_config.list_projects() if not p.deleted ])
+        typer.echo([p for p in projects_config.list_projects()])
     else :
-        typer.echo(projects_config.list_projects())
+        typer.echo(projects_config.list_projects(True))
     
     
 @app.command(help="Find and see a specific project by name")
@@ -71,8 +71,8 @@ def init(path: Annotated[Path, typer.Argument(help="Directory to initialize and 
     metadata = parse_key_value(metadata or [])
     
     
-    if  (path in [p.root for p in projects_config.list_projects() if not p.deleted]):
-        if (project_name in [p.name for p in projects_config.list_projects() if not p.deleted]):
+    if  (path in [p.root for p in projects_config.list_projects()]):
+        if (project_name in [p.name for p in projects_config.list_projects()]):
             
         
             typer.echo(f"Warning: Project already exists at {path} with name: {project_name}.\n")
@@ -90,6 +90,27 @@ def init(path: Annotated[Path, typer.Argument(help="Directory to initialize and 
             typer.echo("Name of a project can't be changed. All projects have unique name and location")
     else:
         projects_config.add_or_update(name=project_name, root=path,metadata=metadata)
+        
+        
+        
+@app.command(help="Delete a project by Name")
+def delete(name: Annotated[str,"Name of the Project that you want to delete"]):
+    global projects_config
+    
+    if name not in [p.name for p in projects_config.list_projects()]:
+        typer.echo(f"No projects with the name : {name}")
+    else:
+        projects_config.delete(name=name)
+        
+        
+@app.command(help="Recover a deleted project (Only recovers the config file)")
+def recover(name: Annotated[str,"Name of the deleted project that needs to be recovered"]):
+    global projects_config
+    if name not in [p.name for p in projects_config.list_projects(True) if p.deleted]:
+        typer.echo(f"No deleted projects found with name : {name}")
+    else:
+        projects_config.retrack(name)
+        
         
 if __name__ == "__main__":
     app()
