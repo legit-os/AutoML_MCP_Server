@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
+from dist_automl.working_dir import WorkingDirectory,YamlManager
 
 
 
@@ -31,12 +32,11 @@ class ProjectsConfig(BaseModel):
 
 class ProjectJSON:
 
-    def __init__(self, json_path: Optional[Path] = None):
+    def __init__(self):
 
-        if json_path:
-            self.path_to_json = json_path.resolve()
-        else:
-            self.path_to_json = (Path(__file__).parent / "all_projects.json").resolve()
+        self.path_to_json = (Path(__file__).parent / "all_projects.json").resolve()
+        
+        self.path_to_cwp = self.path_to_json.parent / "current_project.txt"
 
         self.path_to_json.touch(exist_ok=True)
 
@@ -48,6 +48,8 @@ class ProjectJSON:
             
         if self.project_config.uv_path is None:
             uv_path = shutil.which("uv")
+            self.project_config.uv_path = uv_path
+            self._save()
 
     def _load(self):
         try:
@@ -75,6 +77,17 @@ class ProjectJSON:
                 return idx
         return None
 
+    def set_cwp(self,name):
+        idx = self._find_index(name)
+        
+        if idx is not None:
+            self.path_to_cwp.write_text(self.project_config.projects[idx].name)
+        else: 
+            raise ValueError(f"No project with name : {name}")
+        
+    def get_cwp(self):
+        return self.path_to_cwp.read_text() if self.path_to_cwp.exists() else None
+    
     def add_or_update(
         self,
         name: str,
@@ -86,7 +99,7 @@ class ProjectJSON:
         idx = self._find_index(name)
 
         if idx is not None:
-            if not overwrite:
+            if not overwrite and not self.project_config.projects[idx].deleted:
                 raise ValueError(f"Project '{name}' already exists. Use overwrite=True.")
             
             self.project_config.projects[idx] = ProjectDict(
@@ -96,6 +109,7 @@ class ProjectJSON:
                 metadata=metadata or {}
             )
         else:
+            _ = WorkingDirectory(project_root=root)
             self.project_config.projects.append(
                 ProjectDict(
                     name=name,

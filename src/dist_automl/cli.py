@@ -2,7 +2,8 @@ import typer
 from pathlib import Path
 from typing import Annotated, Optional,List,Dict
 
-from dist_automl.managers.project_manager import ProjectJSON
+from dist_automl.managers.projects_manager import ProjectJSON
+from dist_automl.working_dir import WorkingDirectory, YamlManager
 
 
 
@@ -60,12 +61,13 @@ def show(name: Optional[str] = None):
              """)
 def init(path: Annotated[Path, typer.Argument(help="Directory to initialize and track",
                                               file_okay=False,dir_okay=True,writable=True,
-                                              resolve_path=True)] = Path("."),
+                                              )] = Path("."),
          name : Optional[Annotated[str,"Name of the project"]] = None,
          overwrite : Annotated[bool, typer.Option("--overwrite", "-o")] = False,
          metadata: Annotated[Optional[List[str]], typer.Option("--meta","-m", help="Key-value pairs like -m k=v")] = None
          ):
     global projects_config    
+    path = path.resolve()
     project_name = path.name if name is None else name
     
     metadata = parse_key_value(metadata or [])
@@ -73,25 +75,43 @@ def init(path: Annotated[Path, typer.Argument(help="Directory to initialize and 
     
     if  (path in [p.root for p in projects_config.list_projects()]):
         if (project_name in [p.name for p in projects_config.list_projects()]):
+            typer.echo(path,project_name)
             
         
             typer.echo(f"Warning: Project already exists at {path} with name: {project_name}.\n")
             
             if overwrite is False:
-                conf = typer.confirm("Do you want to overwrite one the project details")
+                conf = typer.confirm("Do you want to overwrite on the project details")
                 if conf:
                         projects_config.add_or_update(name=project_name, root=path,metadata=metadata,overwrite=True)
+                        projects_config.set_cwp(project_name)
                 else :
                     typer.Exit(0)
             else:
                 typer.echo("Overwritting the project details")
                 projects_config.add_or_update(name=project_name, root=path,metadata=metadata,overwrite=True)
+                projects_config.set_cwp(project_name)
         else:
             typer.echo("Name of a project can't be changed. All projects have unique name and location")
     else:
         projects_config.add_or_update(name=project_name, root=path,metadata=metadata)
+        projects_config.set_cwp(project_name)
         
         
+@app.command(help="Set a project to work on with mcp")
+def set(name: str):
+    global projects_config
+    
+    if name not in [p.name for p in projects_config.list_projects()]:
+        typer.echo(f"No projects with name : {name}")
+    else:
+        projects_config.set_cwp(name)
+        typer.echo(f"Current working project is {projects_config.get_cwp()}")
+
+@app.command(help="Get the current working project")
+def get():
+    global projects_config
+    typer.echo(projects_config.get_cwp() or "No Projects\n")
         
 @app.command(help="Delete a project by Name")
 def delete(name: Annotated[str,"Name of the Project that you want to delete"]):
