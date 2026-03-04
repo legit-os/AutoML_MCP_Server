@@ -174,18 +174,18 @@ def data(
     
     metadata = parse_key_value(metadata or [])
     
-    if isinstance(source, Path): 
-        pr = getcurrentProject()
-        if pr is not None:
-            wd = WorkingDirectory(pr.root)
-            wd._manager.update_dataset(name=name,source=source,
-                                       dtype=dtype,description=description,
-                                       metadata=metadata)
-        else:
-            typer.echo("No current working projects found, Use 'set' command to set a project as working project")   
-        
+    pr = getcurrentProject()
+    print(pr)
+    if pr is not None:
+        wd = WorkingDirectory(pr.root)
+        mn = wd._manager
+        with mn:
+            mn.update_dataset(name=name,source=source,
+                                    dtype=dtype,description=description,
+                                    metadata=metadata)
     else:
-        typer.echo(f"Input '{source}' is a string, not an existing path.")
+        typer.echo("No current working projects found, Use 'set' command to set a project as working project")   
+    
 
 
 if __name__ == "__main__":
