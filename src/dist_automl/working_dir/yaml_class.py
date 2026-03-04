@@ -56,13 +56,23 @@ class PipelineConfig(BaseModel):
     stages: Optional[Dict[str, PipelineStage]] = Field(default_factory=dict)
 
 
+class DatasetFile(BaseModel):
+    path: Optional[Path] = None
+    type: Optional[str] = None
+    role: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
+
+class DatasetConfig(BaseModel):
+    path: Optional[Path] = None
+    files: Optional[Dict[str, DatasetFile]] = Field(default_factory=dict)
 
 # -------------------------------------
 class ProjectManifest(BaseModel):
     analysis: Optional[AnalysisConfig] = None
     utils: Optional[UtilsConfig] = None
     pipeline: Optional[PipelineConfig] = None
+    datasets: Optional[DatasetConfig] = None
 
 
 # ------------------------------------
@@ -379,7 +389,44 @@ class YamlManager():
                         )
 
             cfg.delete(element_key)
-            
+    
+
+
+    def update_dataset(
+        self,
+        name: str,
+        source: str,
+        dtype: Optional[str] = None,
+        description : Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+
+            cfg = self._config
+
+            if cfg.get("datasets") is None:
+                cfg.update("datasets", {})
+
+            if cfg.get("datasets.files") is None:
+                cfg.update("datasets.files", {})
+
+            base_key = f"datasets.files.{name}"
+
+            if source is not None:
+                cfg.update(f"{base_key}.path", source.as_posix() if isinstance(source,Path) else source)
+
+            if dtype is not None:
+                cfg.update(f"{base_key}.type", dtype)
+
+            if description is not None:
+                cfg.update(f"{base_key}.description", description)
+
+            if metadata is not None:
+                cfg.update(f"{base_key}.metadata", metadata)
+    
+    
+    def delete_dataset(self, name: str):
+        self._config.delete(f"datasets.files.{name}")
+
     def __enter__(self):
         self._config._in_transaction = True
         return self

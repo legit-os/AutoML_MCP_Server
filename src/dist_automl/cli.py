@@ -1,3 +1,5 @@
+import os
+
 import typer
 from pathlib import Path
 from typing import Annotated, Optional,List,Dict
@@ -12,8 +14,18 @@ projects_config = ProjectJSON()
 
 app = typer.Typer(name="Auto ML Manager")
 
-
-
+def getcurrentProject():
+    global projects_config
+    
+    cwd = Path(os.getcwd())
+    projects = [p for p in projects_config.list_projects() if p.root.as_posix() == cwd.as_posix()]
+    
+    if len(projects) == 0:
+        return None
+    
+    projects_config.set_cwp(projects[0].name)
+    
+    return projects[0]
 
 def parse_key_value(settings: List[str]) -> Dict[str, str]:
     items = {}
@@ -99,15 +111,22 @@ def init(path: Annotated[Path, typer.Argument(help="Directory to initialize and 
         
         
 @app.command(help="Set a project to work on with mcp")
-def set(name: str):
+def set(name: Optional[str]):
     global projects_config
     
-    if name not in [p.name for p in projects_config.list_projects()]:
-        typer.echo(f"No projects with name : {name}")
-    else:
-        projects_config.set_cwp(name)
-        typer.echo(f"Current working project is {projects_config.get_cwp()}")
+    if name is not None:
+        if name not in [p.name for p in projects_config.list_projects()]:
+            typer.echo(f"No projects with name : {name}")
+        else:
+            projects_config.set_cwp(name)
+            typer.echo(f"Current working project is {projects_config.get_cwp()}")
 
+    else:
+        if getcurrentProject() is not None:
+            projects_config.set_cwp(getcurrentProject().name)
+        else:
+            raise typer.BadParameter("This command takes the parameter 'name' or it should run in a project registered through 'init' command")
+        
 @app.command(help="Get the current working project")
 def get():
     global projects_config
@@ -131,7 +150,44 @@ def recover(name: Annotated[str,"Name of the deleted project that needs to be re
     else:
         projects_config.retrack(name)
         
+    
+
+
+def validate_source(value: str):
+    path_attempt = Path(value)
+    
+    if path_attempt.exists():
+        return path_attempt.resolve()
+    
+    return value
+
+@app.command(help="Add a dataset to the project config")
+def data(
+    source: Annotated[str, typer.Argument(callback=validate_source, help="A path or name string")],
+    name : Annotated[str,typer.Option("--name","-n")],
+    dtype: Annotated[str, typer.Option("--type","-t")] = None,
+    description : Annotated[str, typer.Option("-d","--des")] = None,
+    metadata: Annotated[Optional[List[str]], typer.Option("--meta","-m", help="Key-value pairs like -m k=v")] = None
+    
+):
+    global projects_config
+    
+    metadata = parse_key_value(metadata or [])
+    
+    if isinstance(source, Path): 
+        pr = getcurrentProject()
+        if pr is not None:
+            wd = WorkingDirectory(pr.root)
+            wd._manager.update_dataset(name=name,source=source,
+                                       dtype=dtype,description=description,
+                                       metadata=metadata)
+        else:
+            typer.echo("No current working projects found, Use 'set' command to set a project as working project")   
         
+    else:
+        typer.echo(f"Input '{source}' is a string, not an existing path.")
+
+
 if __name__ == "__main__":
     app()
         
