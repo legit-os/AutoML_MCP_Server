@@ -32,9 +32,11 @@ class ProjectsConfig(BaseModel):
 
 class ProjectJSON:
 
-    def __init__(self):
-
-        self.path_to_json = (Path(__file__).parent / "all_projects.json").resolve()
+    def __init__(self,json_path:Path = None):
+        if json_path is not None:
+            self.path_to_json = json_path.resolve()
+        else:
+            self.path_to_json = (Path(__file__).parent / "all_projects.json").resolve()
         
         self.path_to_cwp = self.path_to_json.parent / "current_project.txt"
 

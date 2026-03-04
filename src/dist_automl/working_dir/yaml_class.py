@@ -412,7 +412,7 @@ class YamlManager():
             base_key = f"datasets.files.{name}"
 
             if source is not None:
-                cfg.update(f"{base_key}.path", source.as_posix() if isinstance(source,Path) else source)
+                cfg.update(f"{base_key}.source", source.as_posix() if isinstance(source,Path) else source)
 
             if dtype is not None:
                 cfg.update(f"{base_key}.type", dtype)
