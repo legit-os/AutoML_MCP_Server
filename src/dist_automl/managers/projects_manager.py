@@ -39,6 +39,7 @@ class ProjectJSON:
             self.path_to_json = (Path(__file__).parent / "all_projects.json").resolve()
         
         self.path_to_cwp = self.path_to_json.parent / "current_project.txt"
+        self.path_to_cwd = self.path_to_json.parent / "current_project_root.txt"
 
         self.path_to_json.touch(exist_ok=True)
 
@@ -84,6 +85,7 @@ class ProjectJSON:
         
         if idx is not None:
             self.path_to_cwp.write_text(self.project_config.projects[idx].name)
+            self.path_to_cwd.write_text(self.project_config.projects[idx].root.__str__())
         else: 
             raise ValueError(f"No project with name : {name}")
         

@@ -1,11 +1,15 @@
 import os
+import subprocess
+import sys
 
 import typer
 from pathlib import Path
 from typing import Annotated, Optional,List,Dict
 
+
 from dist_automl.managers.projects_manager import ProjectJSON
 from dist_automl.working_dir import WorkingDirectory, YamlManager
+from dist_automl.dashboard_maker.server import app as flaskapp
 
 
 
@@ -187,6 +191,17 @@ def data(
         typer.echo("No current working projects found, Use 'set' command to set a project as working project")   
     
 
+
+@app.command()
+def dashboard(
+    host: str = "127.0.0.1",
+    port: int = 5000,
+):
+    flaskapp.run(
+        host=host,
+        port=port,
+        debug=True
+    )
 
 if __name__ == "__main__":
     app()
