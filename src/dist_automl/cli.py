@@ -45,7 +45,7 @@ def parse_key_value(settings: List[str]) -> Dict[str, str]:
 
 
 @app.command(help="List all projects")
-def list(all =  typer.Option("-a","--all")):
+def list(all : Annotated[bool,typer.Option("-a","--all")] = False):
     global projects_config
     
     if not all:

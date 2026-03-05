@@ -13,7 +13,7 @@ from dist_automl.dashboard_maker.serializer import (
 from dist_automl.dashboard_maker.type_detector import detect_type
 
 
-def capture_script_outputs(project_root, script_path):
+def capture_script_outputs(project_root, script_path, variables):
 
     project_root = Path(project_root)
     script_path = Path(script_path)
@@ -39,7 +39,7 @@ def capture_script_outputs(project_root, script_path):
 
     for name, obj in namespace.items():
 
-        if name.startswith("__"):
+        if name not in variables:
             continue
 
         obj_type = detect_type(obj)

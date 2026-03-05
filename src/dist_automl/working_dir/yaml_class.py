@@ -318,7 +318,7 @@ class YamlManager():
             if depends_on:
                 for dep in depends_on:
                     if not isinstance(dep, str):
-                        raise ValueError(f"Invalid dependency format: {dep}")
+                        raise ValueError(f"Invalid dependency format: {dep}. \n Dependency '{dep}' must be in format 'stage.element' or 'utils.file'")
 
                     if "." not in dep:
                         raise ValueError(
