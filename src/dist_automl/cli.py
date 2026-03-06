@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 
@@ -202,6 +203,41 @@ def dashboard(
         port=port,
         debug=True
     )
+    
+def find_root(package_name="src"):
+    current_path = Path(__file__)
+    root_path = None
+    print(current_path.parents)
+    for parent in [current_path] + list(current_path.parents):
+        if parent.name == package_name:
+            root_path = parent
+            break
+            
+    if not root_path:
+        root_path = current_path.parent
+    
+    return str(root_path)
+    
+@app.command()
+def mcp():
+    tool_root = Path(__file__).parent.parent.parent.parent
+    server_path = Path(__file__).parent / "mcp_server.py"
+    uv_path = shutil.which("uv")
+    
+    schema = {
+        "mcpServers": {
+            "Auto_ML": {
+                "command": f"{uv_path}",
+                "args": ["--directory",
+                         f"{tool_root}",
+                         "run",
+                         f"{server_path}"]
+            }
+        }
+    }
+    typer.echo("You mcp server config: \n")
+    typer.echo(schema)
+    
 
 if __name__ == "__main__":
     app()
