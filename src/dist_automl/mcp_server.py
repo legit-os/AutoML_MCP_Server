@@ -15,7 +15,8 @@ else:
 
 wd = WorkingDirectory(project_root=cwp_path)
 
-server = FastMCP(name="Auto ML",instructions="""
+server = FastMCP(
+    name="Auto ML",instructions="""
                  This server Provides tools to help a user build an end to end 
                  Machine Learning System from analysis to deployment.
                  You have tools to write down some selected files and run them.
@@ -23,7 +24,8 @@ server = FastMCP(name="Auto ML",instructions="""
                  to capture a list of arguments for running a file so the files are reusable.
                  You an write utility files, analysis files and the main pipeline files.
                  Analysis files will create a dashboard so you need to write code according to the tool instruction.
-                 """)
+                 """
+                 )
 
 
 @server.tool()
@@ -140,3 +142,5 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     
 
 
+if __name__ == "__main__":
+    server.run()
