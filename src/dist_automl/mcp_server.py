@@ -36,6 +36,7 @@ class ServerState():
         self.dash = "dashboard"
         self.state = self.info
         self.state_options = {self.info, self.file, self.dash}
+        self.state_changer = "change_tool_list"
         
 
 serverstate = ServerState()
@@ -59,6 +60,8 @@ def change_tool_list(state: Literal["info_and_file_reading","file_writing","anal
     elif state == "file_writing":
         serverstate.state = "file"
         server.enable(tags={"file"},only=True)
+    
+    server.enable(names={serverstate.state_changer})
 
 @server.tool(tags={"info"})
 def get_current_project_info():
@@ -213,6 +216,7 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     
     
 server.enable(tags={serverstate.info},only=True)
+server.enable(names={serverstate.state_changer})
 
 if __name__ == "__main__":
     server.run()
