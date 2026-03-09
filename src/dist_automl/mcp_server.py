@@ -31,8 +31,12 @@ server = FastMCP(
 
 class ServerState():
     def __init__(self):
-        self.state : str = "info"
-        self.state_options = {"info","file","dashboard"}
+        self.info = "info"
+        self.file = "file"
+        self.dash = "dashboard"
+        self.state = self.info
+        self.state_options = {self.info, self.file, self.dash}
+        
 
 serverstate = ServerState()
 
@@ -48,13 +52,13 @@ def change_tool_list(state: Literal["info_and_file_reading","file_writing","anal
     
     if state == "info_and_file_reading":
         serverstate.state  = "info"
-        server.enable(tags={"info"})
+        server.enable(tags={"info"},only=True)
     elif state == "analysis_and_dashboard":
         serverstate.state = "dashboard"
-        server.enable(tags={"dashboard"})
+        server.enable(tags={"dashboard"},only=True)
     elif state == "file_writing":
         serverstate.state = "file"
-        server.enable(tags={"file"})
+        server.enable(tags={"file"},only=True)
 
 @server.tool(tags={"info"})
 def get_current_project_info():
