@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
 import sys
+from typing import Literal
 
 from fastmcp import FastMCP
 from dist_automl.working_dir import WorkingDirectory
@@ -71,8 +72,6 @@ def run_file(file_path : str, timeout:float, arguments : list[str] = None):
 
 
 
-
-@server.tool()
 def write_pipeline_element(stage: str, name: str, content: str,
                            depends_on:list[str] = None,
                            metadata: dict = None,
@@ -94,18 +93,7 @@ def write_pipeline_element(stage: str, name: str, content: str,
                                overwrite=overwrite)
     return "Updated config file, you can view project info to confirm"
 
-@server.tool()
-def delete_pipeline_element(stage:str,name:str):
-    "delete a file from the pipeline"
-    
-    wd.delete_pipeline_element(stage=stage, name=name)
 
-    return "Deleted a file, you can view project info to confirm"
-
-
-
-
-@server.tool()
 def write_util(name: str, content: str, overwrite : bool = False, metadata: dict = None):
     "Write helper files for the pipeline"
     
@@ -115,12 +103,44 @@ def write_util(name: str, content: str, overwrite : bool = False, metadata: dict
     return "Updated, you can view project info to confirm"
 
 @server.tool()
+def write_file(file_type:Literal["util","pipeline_element"],
+               name: str,
+               content: str,
+               stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"],
+               depends_on: list[str] = None,
+               overwrite: bool = False,
+               metadata: dict = None):
+    if file_type == "pipeline_element":
+        return write_pipeline_element(stage=stage,name=name,
+                                      content=content,
+                                      overwrite=overwrite,
+                                      depends_on=depends_on,
+                                      metadata=metadata)
+    elif file_type == "util":
+        return write_util(name=name,content=content,overwrite=overwrite,metadata=metadata)
+
+def delete_pipeline_element(stage:str,name:str):
+    "delete a file from the pipeline"
+    
+    wd.delete_pipeline_element(stage=stage, name=name)
+
+    return "Deleted a file, you can view project info to confirm"
+
+
+
 def delete_util(name:str):
     "delete a utility file"
     wd.delete_utils(name=name)
     
     return "Deleted utility file, you can view project info to confirm"
 
+@server.tool()
+def delete_file(file_type : Literal["util","pipeline_element"],name: str,
+                stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"]):
+    if file_type == "pipeline_element":
+        delete_pipeline_element(stage,name)
+    elif file_type == "util":
+        delete_util(name)
 
 
 
