@@ -29,7 +29,34 @@ server = FastMCP(
                  )
 
 
-@server.tool()
+class ServerState():
+    def __init__(self):
+        self.state : str = "info"
+        self.state_options = {"info","file","dashboard"}
+
+serverstate = ServerState()
+
+@server.tool(tags=serverstate.state_options)
+def change_tool_list(state: Literal["info_and_file_reading","file_writing","analysis_and_dashboard"]):
+    """
+    Use this tool to access other tools that the server provides:
+    
+    info_and_file_reading : provides project info, how to use guide, file running and reading tools
+    file_writing : provides tools to write any type of file
+    analysis_and_dashboard : provides tools to write analysis code and create dashboard widget
+    """
+    
+    if state == "info_and_file_reading":
+        serverstate.state  = "info"
+        server.enable(tags={"info"})
+    elif state == "analysis_and_dashboard":
+        serverstate.state = "dashboard"
+        server.enable(tags={"dashboard"})
+    elif state == "file_writing":
+        serverstate.state = "file"
+        server.enable(tags={"file"})
+
+@server.tool(tags={"info"})
 def get_current_project_info():
     """
     Get the Projects info that is stored in the config file of the Project
@@ -48,7 +75,7 @@ def get_current_project_info():
     
     
 
-@server.tool()
+@server.tool(tags={"info"})
 def run_file(file_path : str, timeout:float, arguments : list[str] = None):
     """Run a file you created, assuming that the file captures arguments provided 
     from command line, you can provide arguments that your file requires.
@@ -71,7 +98,7 @@ def run_file(file_path : str, timeout:float, arguments : list[str] = None):
 
 
 
-
+@server.tool(tags={"file"})
 def write_pipeline_element(stage: str, name: str, content: str,
                            depends_on:list[str] = None,
                            metadata: dict = None,
@@ -93,7 +120,7 @@ def write_pipeline_element(stage: str, name: str, content: str,
                                overwrite=overwrite)
     return "Updated config file, you can view project info to confirm"
 
-
+@server.tool(tags={"file"})
 def write_util(name: str, content: str, overwrite : bool = False, metadata: dict = None):
     "Write helper files for the pipeline"
     
@@ -102,23 +129,35 @@ def write_util(name: str, content: str, overwrite : bool = False, metadata: dict
     
     return "Updated, you can view project info to confirm"
 
-@server.tool()
-def write_file(file_type:Literal["util","pipeline_element"],
-               name: str,
-               content: str,
-               stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"],
-               depends_on: list[str] = None,
-               overwrite: bool = False,
-               metadata: dict = None):
-    if file_type == "pipeline_element":
-        return write_pipeline_element(stage=stage,name=name,
-                                      content=content,
-                                      overwrite=overwrite,
-                                      depends_on=depends_on,
-                                      metadata=metadata)
-    elif file_type == "util":
-        return write_util(name=name,content=content,overwrite=overwrite,metadata=metadata)
+# @server.tool()
+# def write_file(file_type:Literal["util","pipeline_element"],
+#                name: str,
+#                content: str,
+#                stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"],
+#                depends_on: list[str] = None,
+#                overwrite: bool = False,
+#                metadata: dict = None):
+#     """Write a utility or pipeline file.
+#     Args: 
+#         file_type: util or pipeline_element 
+#         name: without extention name of the file
+#         content: code to write in the file
+#         stage: only required for the pipeline element
+#         depends_on: stage.name or util.name (for only those files that already exists in the config file)
+#         metadata: a dictionary of extra data assumed str to (str or int) mapping
+#         """
+#     if file_type == "pipeline_element":
+#         if stage == "utils":
+#             raise ValueError("Utils name of stage should be given on")
+#         return write_pipeline_element(stage=stage,name=name,
+#                                       content=content,
+#                                       overwrite=overwrite,
+#                                       depends_on=depends_on,
+#                                       metadata=metadata)
+#     elif file_type == "util":
+#         return write_util(name=name,content=content,overwrite=overwrite,metadata=metadata)
 
+@server.tool(tags={"file"})
 def delete_pipeline_element(stage:str,name:str):
     "delete a file from the pipeline"
     
@@ -127,24 +166,33 @@ def delete_pipeline_element(stage:str,name:str):
     return "Deleted a file, you can view project info to confirm"
 
 
-
+@server.tool(tags={'file'})
 def delete_util(name:str):
     "delete a utility file"
     wd.delete_utils(name=name)
     
     return "Deleted utility file, you can view project info to confirm"
 
-@server.tool()
-def delete_file(file_type : Literal["util","pipeline_element"],name: str,
-                stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"]):
-    if file_type == "pipeline_element":
-        delete_pipeline_element(stage,name)
-    elif file_type == "util":
-        delete_util(name)
+# @server.tool()
+# def delete_file(file_type : Literal["util","pipeline_element"],name: str,
+#                 stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"]):
+#     """
+#     delete a utility or pipeline element
+#     Args: 
+#         file_type: required as given in definition
+#         name: without extention name of the file
+#         stage: required only for the pipeline element else should be given as utils
+#     """
+    
+    
+#     if file_type == "pipeline_element":
+#         delete_pipeline_element(stage,name)
+#     elif file_type == "util":
+#         delete_util(name)
 
 
 
-@server.tool()
+@server.tool(tags={"dashboard"})
 def create_analysis_dashboard_item(name: str,file_content: str, capture_variables: list[str]):
     """
     create a file that produces some variable containing pandas dataframe or matplotlib 
