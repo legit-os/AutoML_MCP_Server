@@ -62,6 +62,8 @@ def change_tool_list(state: Literal["info_and_file_reading","file_writing","anal
         server.enable(tags={"file"},only=True)
     
     server.enable(names={serverstate.state_changer})
+    
+    return "Enabled requested tools and disabled others, you can check the tools exposed to you"
 
 @server.tool(tags={"info"})
 def get_current_project_info():
@@ -93,6 +95,8 @@ def run_file(file_path : str, timeout:float, arguments : list[str] = None):
         subprocess.run(["uv","run",f"{file_path}"].extend(arguments),timeout=timeout,cwd=cwp_path)
     else:
         subprocess.run(["uv","run",f"{file_path}"],timeout=timeout,cwd=cwp_path)
+        
+    return "File ran and finished successfully"
         
 
 # @server.tool()
@@ -211,6 +215,7 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     
     wd.update_analysis(name=name,path=Path(f"analysis/{name}.py"),metadata=captured,content=file_content)
     captured = capture_script_outputs(project_root=cwp_path,script_path=script_path,variables=capture_variables)
+    return "captured provided variables and added to dashboard"
     
     
     
