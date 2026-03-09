@@ -212,7 +212,7 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     
     
     
-
+server.enable(tags={serverstate.info},only=True)
 
 if __name__ == "__main__":
     server.run()
