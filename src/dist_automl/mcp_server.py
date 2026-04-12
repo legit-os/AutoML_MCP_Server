@@ -84,38 +84,38 @@ def get_current_project_info():
     
     
 
-@server.tool(tags={"info"})
-def run_file(file_path: str, timeout: float, arguments: list[str] = None):
-    """Run a file you created, assuming that the file captures arguments provided 
-    from command line, you can provide arguments that your file requires.
-    File Path should be provided relative to project like 'pipeline/scaler.py'.
-    Timeout must be provided so that system doesn't break if python files have bugs
-    """
-    cmd = ["uv", "run", file_path]
-    if arguments:
-        cmd.extend(arguments)
+# @server.tool(tags={"info"})
+# def run_file(file_path: str, timeout: float, arguments: list[str] = None):
+#     """Run a file you created, assuming that the file captures arguments provided 
+#     from command line, you can provide arguments that your file requires.
+#     File Path should be provided relative to project like 'pipeline/scaler.py'.
+#     Timeout must be provided so that system doesn't break if python files have bugs
+#     """
+#     cmd = ["uv", "run", file_path]
+#     if arguments:
+#         cmd.extend(arguments)
     
-    try:
-        out = subprocess.run(
-            cmd,
-            timeout=timeout,
-            cwd=cwp_path,
-            capture_output=True,
-            text=True
-        )
+#     try:
+#         out = subprocess.run(
+#             cmd,
+#             timeout=timeout,
+#             cwd=cwp_path,
+#             capture_output=True,
+#             text=True
+#         )
         
-        status = "Success" if out.returncode == 0 else "Failure"
-        result = f"--- Execution {status} (Return Code: {out.returncode}) ---\n"
-        if out.stdout:
-            result += f"\nSTDOUT:\n{out.stdout}"
-        if out.stderr:
-            result += f"\nSTDERR:\n{out.stderr}"
-        return result
+#         status = "Success" if out.returncode == 0 else "Failure"
+#         result = f"--- Execution {status} (Return Code: {out.returncode}) ---\n"
+#         if out.stdout:
+#             result += f"\nSTDOUT:\n{out.stdout}"
+#         if out.stderr:
+#             result += f"\nSTDERR:\n{out.stderr}"
+#         return result
         
-    except subprocess.TimeoutExpired:
-        return f"Error: Execution timed out after {timeout} seconds."
-    except Exception as e:
-        return f"Error: An unexpected error occurred: {str(e)}"
+#     except subprocess.TimeoutExpired:
+#         return f"Error: Execution timed out after {timeout} seconds."
+#     except Exception as e:
+#         return f"Error: An unexpected error occurred: {str(e)}"
 
 @server.tool(tags={"info"})
 def read_file(path: str):

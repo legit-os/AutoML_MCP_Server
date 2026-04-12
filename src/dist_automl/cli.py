@@ -56,14 +56,16 @@ def parse_key_value(settings: List[str]) -> Dict[str, str]:
 
 
 
-@app.command(help="List all projects")
+@app.command(help="List all projects (-a argument will give the info of deleted projects also)")
 def list(all : Annotated[bool,typer.Option("-a","--all")] = False):
     global projects_config
     
     if not all:
-        typer.echo([p for p in projects_config.list_projects()])
+        for p in projects_config.list_projects():
+            typer.echo(p)
     else :
-        typer.echo(projects_config.list_projects(True))
+        for p in projects_config.list_projects(True):
+            typer.echo(p)
     
     
 @app.command(help="Find and see a specific project by name")
@@ -72,11 +74,16 @@ def show(name: Optional[str] = None):
     if name is None:
         typer.echo(projects_config.list_projects())
     else :
-        project = [p for p in projects_config.list_projects() if p.name == name] 
+        project = None
+        for p in projects_config.list_projects():
+            if p.name == name:
+                project = p
+                break
         if len(project) == 0:
             richprint(f"No projects with name : {name}",color="red")
         else :
-            rich.print(project[0])
+            typer.echo(project[0])
+            
 
 
 
