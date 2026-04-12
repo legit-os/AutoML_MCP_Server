@@ -85,18 +85,71 @@ def get_current_project_info():
     
 
 @server.tool(tags={"info"})
-def run_file(file_path : str, timeout:float, arguments : list[str] = None):
+def run_file(file_path: str, timeout: float, arguments: list[str] = None):
     """Run a file you created, assuming that the file captures arguments provided 
     from command line, you can provide arguments that your file requires.
     File Path should be provided relative to project like 'pipeline/scaler.py'.
     Timeout must be provided so that system doesn't break if python files have bugs
     """
-    if arguments is not None:
-        subprocess.run(["uv","run",f"{file_path}"].extend(arguments),timeout=timeout,cwd=cwp_path)
-    else:
-        subprocess.run(["uv","run",f"{file_path}"],timeout=timeout,cwd=cwp_path)
+    cmd = ["uv", "run", file_path]
+    if arguments:
+        cmd.extend(arguments)
+    
+    try:
+        out = subprocess.run(
+            cmd,
+            timeout=timeout,
+            cwd=cwp_path,
+            capture_output=True,
+            text=True
+        )
         
-    return "File ran and finished successfully"
+        status = "Success" if out.returncode == 0 else "Failure"
+        result = f"--- Execution {status} (Return Code: {out.returncode}) ---\n"
+        if out.stdout:
+            result += f"\nSTDOUT:\n{out.stdout}"
+        if out.stderr:
+            result += f"\nSTDERR:\n{out.stderr}"
+        return result
+        
+    except subprocess.TimeoutExpired:
+        return f"Error: Execution timed out after {timeout} seconds."
+    except Exception as e:
+        return f"Error: An unexpected error occurred: {str(e)}"
+
+@server.tool(tags={"info"})
+def read_file(path: str):
+    """
+    Read a file from the project. 
+    'path' should be in the format 'stage.element' for pipeline files (e.g., 'preprocessing.scaler')
+    or 'utils.name' for utility files (e.g., 'utils.helper').
+    """
+    if "." not in path:
+        return "Error: Path must be in 'stage.element' or 'utils.name' format."
+        
+    parts = path.split(".", 1)
+    prefix = parts[0]
+    name = parts[1]
+    
+    file_info = None
+    if prefix == "utils":
+        file_info = wd.config.get(f"utils.files.{name}")
+    else:
+        file_info = wd.config.get(f"pipeline.stages.{prefix}.elements.{name}")
+        
+    if not file_info or "path" not in file_info:
+        return f"Error: Could not find file registered for '{path}' in config."
+        
+    rel_path = Path(file_info["path"])
+    abs_path = cwp_path / rel_path
+    
+    if not abs_path.exists():
+        return f"Error: File '{rel_path}' exists in config but not on disk."
+        
+    try:
+        return abs_path.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"Error reading file: {str(e)}"
         
 
 # @server.tool()
@@ -220,8 +273,8 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     
     
     
-server.enable(tags={serverstate.info},only=True)
-server.enable(names={serverstate.state_changer})
+# server.enable(tags={serverstate.info},only=True)
+server.disable(names={serverstate.state_changer})
 
 if __name__ == "__main__":
     server.run()
