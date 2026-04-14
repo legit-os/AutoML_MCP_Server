@@ -10,6 +10,7 @@ dependencies = [
   "pyyaml>=6.0.3",
   "requests>=2.32.5",
   "typer>=0.24.1",
+  "reflex>=0.7.0",
 ]
 description = "Add your description here"
 name = "automl-mcp"

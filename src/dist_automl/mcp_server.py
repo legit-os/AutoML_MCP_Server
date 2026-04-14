@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastmcp import FastMCP
 from dist_automl.working_dir import WorkingDirectory
-from dist_automl.dashboard_maker.dashboard_capture import capture_script_outputs
+from dist_automl.dashboard_maker_reflex.dashboard_capture import capture_script_outputs
 
 cwp_path = (Path(__file__).parent / "managers" / "current_project_root.txt").read_text()
 
@@ -266,8 +266,12 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     
     script_path = cwp_path / "analysis" / f"{name}.py"
     
-    wd.update_analysis(name=name,path=Path(f"analysis/{name}.py"),metadata=captured,content=file_content)
-    captured = capture_script_outputs(project_root=cwp_path,script_path=script_path,variables=capture_variables)
+    # Write the analysis script to disk first
+    wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata={}, content=file_content)
+    # Then run it and capture the specified variables
+    captured = capture_script_outputs(project_root=cwp_path, script_path=script_path, variables=capture_variables)
+    # Update metadata with what was captured
+    wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata=captured, content=file_content)
     return "captured provided variables and added to dashboard"
     
     

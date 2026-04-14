@@ -12,7 +12,7 @@ import json
 
 from dist_automl.managers.projects_manager import ProjectJSON
 from dist_automl.working_dir import WorkingDirectory, YamlManager
-from dist_automl.dashboard_maker.server import app as flaskapp
+
 
 
 
@@ -214,12 +214,16 @@ def data(
 @app.command()
 def dashboard(
     host: str = "127.0.0.1",
-    port: int = 5000,
+    port: int = 3000,
 ):
-    flaskapp.run(
-        host=host,
-        port=port,
-        debug=True
+    import subprocess
+    import sys
+    dashboard_dir = Path(__file__).parent / "dashboard_maker_reflex"
+    subprocess.run(
+        [sys.executable, "-m", "reflex", "run",
+         "--frontend-port", str(port),
+         "--backend-host", host],
+        cwd=str(dashboard_dir)
     )
     
 def find_root(package_name="src"):
