@@ -149,7 +149,8 @@ class DashboardState(rx.State):
         full_path = base / rel_path
 
         if var_type == "figure" and full_path.exists():
-            widget.image_url = f"/api/dashboard-image?path={rel_path}"
+            api_url = rx.config.get_config().api_url
+            widget.image_url = f"{api_url}/api/dashboard-image?path={rel_path}"
         elif full_path.exists():
             try:
                 raw = json.loads(full_path.read_text())
