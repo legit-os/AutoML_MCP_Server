@@ -9,7 +9,8 @@ import json
 from pathlib import Path
 
 import reflex as rx
-from fastapi import Query
+from pydantic import BaseModel
+from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse
 
 
@@ -18,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse
 # ---------------------------------------------------------------------------
 
 _PROJECT_FILE = (
-    Path(__file__).parent.parent.parent / "managers" / "current_project_root.txt"
+    Path(__file__).parent.parent.parent.parent / "managers" / "current_project_root.txt"
 )
 
 
@@ -34,7 +35,7 @@ def _get_project_root() -> str:
 # ---------------------------------------------------------------------------
 
 
-class VariableInfo(rx.Base):
+class VariableInfo(BaseModel):
     """Flat representation of a variable from metadata.json."""
 
     key: str  # "script_path::var_name"
@@ -44,7 +45,7 @@ class VariableInfo(rx.Base):
     rel_path: str
 
 
-class WidgetItem(rx.Base):
+class WidgetItem(BaseModel):
     """All data needed to render one dashboard widget."""
 
     id: str
@@ -485,22 +486,11 @@ def index() -> rx.Component:
 # App & API
 # ---------------------------------------------------------------------------
 
-app = rx.App(
-    theme=rx.theme(
-        appearance="dark",
-        accent_color="blue",
-        radius="medium",
-        scaling="100%",
-    ),
-    style={
-        "::selection": {"background": "var(--accent-5)"},
-    },
-)
-
-app.add_page(index, title="AutoML Dashboard", on_load=DashboardState.on_load)
+# Custom FastAPI app for serving dashboard images
+custom_api = FastAPI()
 
 
-# Image-serving endpoint (uses FastAPI under the hood)
+@custom_api.get("/api/dashboard-image")
 async def _serve_dashboard_image(path: str = Query(...)):
     """Serve a captured matplotlib figure PNG from dashboard_runs."""
     project_root = _get_project_root()
@@ -512,4 +502,17 @@ async def _serve_dashboard_image(path: str = Query(...)):
     return JSONResponse({"error": "file not found"}, status_code=404)
 
 
-app.api.add_api_route("/api/dashboard-image", _serve_dashboard_image)
+app = rx.App(
+    theme=rx.theme(
+        appearance="dark",
+        accent_color="blue",
+        radius="medium",
+        scaling="100%",
+    ),
+    style={
+        "::selection": {"background": "var(--accent-5)"},
+    },
+    api_transformer=custom_api,
+)
+
+app.add_page(index, title="AutoML Dashboard", on_load=DashboardState.on_load)

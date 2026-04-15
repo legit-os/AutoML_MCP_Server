@@ -28,3 +28,6 @@ requires = ["hatchling"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dist_automl"]
+include = [
+    "src/dist_automl/dashboard_maker_reflex/reflex_app/**/*"
+]

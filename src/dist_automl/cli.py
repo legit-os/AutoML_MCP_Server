@@ -218,7 +218,7 @@ def dashboard(
 ):
     import subprocess
     import sys
-    dashboard_dir = Path(__file__).parent / "dashboard_maker_reflex"
+    dashboard_dir = Path(__file__).parent / "dashboard_maker_reflex" / "reflex_app"
     subprocess.run(
         [sys.executable, "-m", "reflex", "run",
          "--frontend-port", str(port),
