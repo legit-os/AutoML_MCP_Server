@@ -16,7 +16,7 @@ description = "Add your description here"
 name = "automl-mcp"
 readme = "README.md"
 requires-python = ">=3.14"
-version = "0.1.0"
+version = "1.0.0"
 
 [project.scripts]
 automl = "dist_automl.cli:app"
