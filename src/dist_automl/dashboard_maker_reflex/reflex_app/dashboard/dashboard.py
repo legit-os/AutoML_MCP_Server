@@ -190,29 +190,46 @@ class DashboardState(rx.State):
         """Update widget layout properties and save to metadata.json."""
         script_key, name = id.split("::", 1)
         
-        # 1. Update in-memory state
+        # 1. Update in-memory state securely for reactivity
+        updated_widgets = []
         for w in self.active_widgets:
             if w.id == id:
                 w.x = layout_data.get("x", w.x)
                 w.y = layout_data.get("y", w.y)
                 w.width = layout_data.get("width", w.width)
                 w.height = layout_data.get("height", w.height)
-                
-                # 2. Update memory metadata dictionary
-                if script_key in self.scripts_metadata and name in self.scripts_metadata[script_key]:
-                    self.scripts_metadata[script_key][name]["x"] = w.x
-                    self.scripts_metadata[script_key][name]["y"] = w.y
-                    self.scripts_metadata[script_key][name]["width"] = w.width
-                    self.scripts_metadata[script_key][name]["height"] = w.height
-                break
+            updated_widgets.append(w)
+        self.active_widgets = updated_widgets
 
-        # 3. Flush to disk
+        # 2. Update memory metadata dictionary cleanly
+        new_meta = self.scripts_metadata.copy()
+        if script_key in new_meta and name in new_meta[script_key]:
+            script_meta = new_meta[script_key].copy()
+            var_meta = script_meta[name].copy()
+            
+            var_meta["x"] = layout_data.get("x", var_meta.get("x"))
+            var_meta["y"] = layout_data.get("y", var_meta.get("y"))
+            var_meta["width"] = layout_data.get("width", var_meta.get("width"))
+            var_meta["height"] = layout_data.get("height", var_meta.get("height"))
+            
+            script_meta[name] = var_meta
+            new_meta[script_key] = script_meta
+        self.scripts_metadata = new_meta
+
+        # 3. Flush to disk safely without Reflex Proxies
         meta_file = Path(self._project_root) / "dashboard_runs" / "metadata.json"
         if meta_file.exists():
             try:
                 with open(meta_file, "r") as f:
                     data = json.load(f)
-                data["scripts"] = self.scripts_metadata
+                
+                if script_key in data.get("scripts", {}) and name in data["scripts"][script_key]:
+                    element = data["scripts"][script_key][name]
+                    if "x" in layout_data: element["x"] = float(layout_data["x"])
+                    if "y" in layout_data: element["y"] = float(layout_data["y"])
+                    if "width" in layout_data: element["width"] = float(layout_data["width"])
+                    if "height" in layout_data: element["height"] = float(layout_data["height"])
+                
                 with open(meta_file, "w") as f:
                     json.dump(data, f, indent=4)
             except Exception as e:
