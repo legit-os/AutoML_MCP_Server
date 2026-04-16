@@ -500,8 +500,8 @@ def widget_card(widget: WidgetItem) -> rx.Component:
         },
         bounds="parent",
         drag_handle_class_name="drag-handle",
-        on_drag_stop=lambda e, d: DashboardState.on_drag_stop(widget.id, d),
-        on_resize_stop=lambda e, direction, ref, delta, position: DashboardState.on_resize_stop(widget.id, ref, position),
+        on_drag_stop=lambda d: DashboardState.on_drag_stop(widget.id, d),
+        on_resize_stop=lambda ref, position: DashboardState.on_resize_stop(widget.id, ref, position),
         style={"position": "absolute", "zIndex": "10"}
     )
 
