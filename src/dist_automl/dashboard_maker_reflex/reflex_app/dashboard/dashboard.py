@@ -13,6 +13,9 @@ from pydantic import BaseModel
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse
 
+from .components.react_rnd import rnd
+from .components.react_canvas import transform_wrapper, transform_component
+
 
 # ---------------------------------------------------------------------------
 # Project root discovery
@@ -60,6 +63,11 @@ class WidgetItem(BaseModel):
     dict_data: str = ""
     kpi_value: str = ""
     image_url: str = ""
+    # Canvas Layout
+    x: float = 50
+    y: float = 50
+    width: float = 400
+    height: float = 300
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +151,10 @@ class DashboardState(rx.State):
             script_key=script_key,
             var_type=var_type,
             rel_path=rel_path,
+            x=float(var_info.get("x", 50)),
+            y=float(var_info.get("y", 50)),
+            width=float(var_info.get("width", 400)),
+            height=float(var_info.get("height", 300)),
         )
 
         base = Path(self._project_root) / "dashboard_runs"
@@ -173,6 +185,62 @@ class DashboardState(rx.State):
 
         self.selected_keys = [*self.selected_keys, key]
         self.active_widgets = [*self.active_widgets, widget]
+
+    def update_layout(self, id: str, layout_data: dict):
+        """Update widget layout properties and save to metadata.json."""
+        script_key, name = id.split("::", 1)
+        
+        # 1. Update in-memory state
+        for w in self.active_widgets:
+            if w.id == id:
+                w.x = layout_data.get("x", w.x)
+                w.y = layout_data.get("y", w.y)
+                w.width = layout_data.get("width", w.width)
+                w.height = layout_data.get("height", w.height)
+                
+                # 2. Update memory metadata dictionary
+                if script_key in self.scripts_metadata and name in self.scripts_metadata[script_key]:
+                    self.scripts_metadata[script_key][name]["x"] = w.x
+                    self.scripts_metadata[script_key][name]["y"] = w.y
+                    self.scripts_metadata[script_key][name]["width"] = w.width
+                    self.scripts_metadata[script_key][name]["height"] = w.height
+                break
+
+        # 3. Flush to disk
+        meta_file = Path(self._project_root) / "dashboard_runs" / "metadata.json"
+        if meta_file.exists():
+            try:
+                with open(meta_file, "r") as f:
+                    data = json.load(f)
+                data["scripts"] = self.scripts_metadata
+                with open(meta_file, "w") as f:
+                    json.dump(data, f, indent=4)
+            except Exception as e:
+                print(f"Error saving layout: {e}")
+
+    def on_drag_stop(self, id: str, data: dict):
+        self.update_layout(id, {"x": float(data.get("x", 0)), "y": float(data.get("y", 0))})
+
+    def on_resize_stop(self, id: str, ref: dict, position: dict):
+        try:
+            # ref.style.width comes through as a string like "400px" in the JSON dict
+            width_str = ref.get("style", {}).get("width", "")
+            height_str = ref.get("style", {}).get("height", "")
+            
+            width = float(str(width_str).replace("px", "")) if width_str else None
+            height = float(str(height_str).replace("px", "")) if height_str else None
+            
+            layout_update = {
+                "x": float(position.get("x", 0)),
+                "y": float(position.get("y", 0)),
+            }
+            if width is not None: layout_update["width"] = width
+            if height is not None: layout_update["height"] = height
+            
+            self.update_layout(id, layout_update)
+        except Exception as e:
+            print(f"Resize dict parsing error: {e}")
+
 
 
 # ---------------------------------------------------------------------------
@@ -390,30 +458,51 @@ def widget_content(widget: WidgetItem) -> rx.Component:
 
 
 def widget_card(widget: WidgetItem) -> rx.Component:
-    """One card on the dashboard grid."""
-    return rx.card(
+    """One card on the dashboard canvas."""
+    card_content = rx.card(
         rx.vstack(
-            # Card header
+            # Card header (Acts as the drag handle)
             rx.flex(
                 rx.text(widget.name, size="3", weight="bold"),
+                rx.spacer(),
                 type_badge(widget.var_type),
-                justify="between",
                 align="center",
                 width="100%",
+                class_name="drag-handle",
+                cursor="move",
+                padding_bottom="1",
+                border_bottom="1px solid var(--gray-a4)",
             ),
-            rx.separator(),
             # Card body
             rx.box(
                 widget_content(widget),
                 width="100%",
+                height="100%",
                 overflow="auto",
-                max_height="500px",
             ),
             spacing="3",
             width="100%",
+            height="100%",
         ),
         width="100%",
+        height="100%",
         variant="surface",
+        style={"overflow": "hidden"}
+    )
+    
+    return rnd(
+        card_content,
+        default={
+            "x": widget.x,
+            "y": widget.y,
+            "width": widget.width,
+            "height": widget.height,
+        },
+        bounds="parent",
+        drag_handle_class_name="drag-handle",
+        on_drag_stop=lambda e, d: DashboardState.on_drag_stop(widget.id, d),
+        on_resize_stop=lambda e, direction, ref, delta, position: DashboardState.on_resize_stop(widget.id, ref, position),
+        style={"position": "absolute", "zIndex": "10"}
     )
 
 
@@ -449,23 +538,38 @@ def empty_canvas() -> rx.Component:
 
 
 def main_canvas() -> rx.Component:
-    """Main area: responsive grid of widget cards."""
+    """Main area: Infinite pannable canvas containing absolutely positioned widgets."""
+    
+    canvas_container = rx.cond(
+        DashboardState.has_widgets,
+        rx.box(
+            rx.foreach(DashboardState.active_widgets, widget_card),
+            width="5000px",  # Large virtual chart paper
+            height="5000px",
+            position="relative",
+            background_image="radial-gradient(var(--gray-a4) 1px, transparent 1px)",
+            background_size="25px 25px",
+        ),
+        empty_canvas(),
+    )
+    
     return rx.box(
-        rx.cond(
-            DashboardState.has_widgets,
-            rx.grid(
-                rx.foreach(DashboardState.active_widgets, widget_card),
-                columns=rx.breakpoints(initial="1", sm="1", md="2", lg="3"),
-                spacing="5",
-                width="100%",
+        transform_wrapper(
+            transform_component(
+                canvas_container,
+                wrapper_style={"width": "100%", "height": "100%"},
             ),
-            empty_canvas(),
+            initial_scale=1,
+            min_scale=0.1,
+            max_scale=3,
+            panning={"disabled": False, "excluded": ["drag-handle"]},
+            wheel={"step": 0.05},
         ),
         flex="1",
-        padding="28px",
-        overflow_y="auto",
+        width="100%",
         height="100vh",
         background="var(--gray-1)",
+        overflow="hidden",
     )
 
 
