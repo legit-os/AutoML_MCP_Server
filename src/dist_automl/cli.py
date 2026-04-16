@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated, Optional,List,Dict
 import rich
 import json
+import webbrowser
 
 
 from dist_automl.managers.projects_manager import ProjectJSON
@@ -211,21 +212,33 @@ def data(
     
 
 
-@app.command()
+@app.command(help="Launch the custom React/FastAPI dashboard")
 def dashboard(
     host: str = "127.0.0.1",
-    port: int = 3000,
+    port: int = 8000,
 ):
-    import subprocess
-    import sys
-    dashboard_dir = Path(__file__).parent / "dashboard_maker_reflex" / "reflex_app"
-    subprocess.run(
-        [sys.executable, "-m", "reflex", "run",
-         "--frontend-port", str(port),
-         "--backend-host", host],
-        cwd=str(dashboard_dir)
-    )
+    import uvicorn
+    from dist_automl.dashboard_maker_custom.server import app as dashboard_app, static_dir
     
+    url = f"http://{host}:{port}"
+    richprint(f"Loading frontend from: {static_dir}", color="yellow")
+    if not static_dir.exists():
+        richprint("Warning: Frontend build not found! Dashboard may show a blank page.", color="red")
+        richprint("Run 'npm run build' in the frontend directory first.", color="yellow")
+        
+    richprint(f"Launching dashboard at {url}", color="cyan")
+    
+    # Open browser in a separate thread/process
+    import threading
+    def open_browser():
+        import time
+        time.sleep(2.0) # Give the server a moment to start
+        webbrowser.open(url)
+    
+    threading.Thread(target=open_browser, daemon=True).start()
+    
+    uvicorn.run(dashboard_app, host=host, port=port)
+
 def find_root(package_name="src"):
     current_path = Path(__file__)
     root_path = None

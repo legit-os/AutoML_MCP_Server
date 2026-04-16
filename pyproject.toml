@@ -10,8 +10,8 @@ dependencies = [
   "pyyaml>=6.0.3",
   "requests>=2.32.5",
   "typer>=0.24.1",
-  "reflex>=0.7.0",
   "fastapi>=0.135.3",
+  "uvicorn>=0.30.0",
 ]
 description = "Add your description here"
 name = "automl-mcp"
@@ -29,5 +29,17 @@ requires = ["hatchling"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/dist_automl"]
 include = [
-    "src/dist_automl/dashboard_maker_reflex/reflex_app/**/*"
+    "src/dist_automl/dashboard_maker_custom/**/*"
+]
+exclude = [
+    "**/node_modules",
+    "**/frontend/src",
+    "**/frontend/public",
+    "**/frontend/package.json",
+    "**/frontend/package-lock.json",
+    "**/frontend/vite.config.js",
+    "**/__pycache__",
+    "**/*.pyc",
+    "**/.git",
+    "**/.vscode"
 ]

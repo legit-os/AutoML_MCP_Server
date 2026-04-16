@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastmcp import FastMCP
 from dist_automl.working_dir import WorkingDirectory
-from dist_automl.dashboard_maker_reflex.dashboard_capture import capture_script_outputs
+from dist_automl.dashboard_maker_custom.dashboard_capture import capture_script_outputs
 
 cwp_path = (Path(__file__).parent / "managers" / "current_project_root.txt").read_text()
 
