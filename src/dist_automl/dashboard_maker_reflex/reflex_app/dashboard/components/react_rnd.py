@@ -21,9 +21,6 @@ class ReactRnd(rx.Component):
     
     # Disable dragging on specific elements (like inputs)
     cancel: rx.Var[str]
-    
-    # Reflex built-in styling via dictionaries
-    style: rx.Var[dict]
 
     def get_event_triggers(self) -> dict[str, rx.Var | type[rx.Var]]:
         return {
