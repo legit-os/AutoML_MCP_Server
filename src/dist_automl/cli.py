@@ -1,14 +1,28 @@
 import os
 import shutil
-
-import rich.style
-import rich.text
-import typer
-from pathlib import Path
-from typing import Annotated, Optional,List,Dict
-import rich
 import json
 import webbrowser
+from pathlib import Path
+from typing import Annotated, Optional, List, Dict
+
+import typer
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.text import Text
+from rich.theme import Theme
+
+# Custom theme for the CLI
+custom_theme = Theme({
+    "info": "cyan",
+    "warning": "yellow",
+    "error": "bold red",
+    "success": "bold green",
+    "highlight": "bold magenta",
+})
+
+console = Console(theme=custom_theme)
 
 
 from dist_automl.managers.projects_manager import ProjectJSON
@@ -17,16 +31,23 @@ from dist_automl.working_dir import WorkingDirectory, YamlManager
 
 
 
-def richprint(object,color="green",json_: bool = False):
-    
+def richprint(object, color="green", json_: bool = False):
     if json_:
-        content = json.dumps(object)
-        rich.print_json(content)
+        if isinstance(object, dict):
+            content = json.dumps(object, indent=4)
+        else:
+            content = str(object)
+        console.print_json(content)
     else:
-        content = rich.text.Text(object,style=rich.style.Style(color=color))
-        rich.print(content)
-    
-    
+        console.print(object, style=color)
+
+def print_header():
+    """Prints a branded header for the CLI."""
+    console.print()
+    header_text = Text("AutoML MCP Manager", style="bold blue")
+    console.print(Panel(header_text, subtitle="[dim]End-to-End ML Pipeline Orchestrator[/dim]", expand=False, border_style="blue"))
+    console.print()
+
 projects_config = ProjectJSON()
 
 app = typer.Typer(name="Auto ML Manager")
@@ -58,32 +79,75 @@ def parse_key_value(settings: List[str]) -> Dict[str, str]:
 
 
 @app.command(help="List all projects (-a argument will give the info of deleted projects also)")
-def list(all : Annotated[bool,typer.Option("-a","--all")] = False):
+def list(all: Annotated[bool, typer.Option("-a", "--all")] = False):
     global projects_config
+    print_header()
     
-    if not all:
-        for p in projects_config.list_projects():
-            typer.echo(p)
-    else :
-        for p in projects_config.list_projects(True):
-            typer.echo(p)
+    projects = projects_config.list_projects(include_deleted=all)
+    
+    if not projects:
+        console.print("[warning]No projects found.[/warning]")
+        return
+
+    table = Table(title="AutoML Projects", border_style="blue", header_style="bold cyan")
+    table.add_column("Status", justify="center")
+    table.add_column("Name", style="highlight")
+    table.add_column("Root Directory", style="info")
+    table.add_column("Metadata", style="success")
+
+    cwp = projects_config.get_cwp()
+
+    for p in projects:
+        status = "✅"
+        if p.deleted:
+            status = "❌ [dim](deleted)[/dim]"
+        elif p.name == cwp:
+            status = "⭐ [bold]ACTIVE[/bold]"
+            
+        metadata_str = ", ".join([f"{k}={v}" for k, v in p.metadata.items()]) if p.metadata else "[dim]None[/dim]"
+        table.add_row(status, p.name, str(p.root), metadata_str)
+
+    console.print(table)
     
     
 @app.command(help="Find and see a specific project by name")
 def show(name: Optional[str] = None):
     global projects_config
+    print_header()
+    
     if name is None:
-        typer.echo(projects_config.list_projects())
-    else :
-        project = None
-        for p in projects_config.list_projects():
-            if p.name == name:
-                project = p
-                break
-        if len(project) == 0:
-            richprint(f"No projects with name : {name}",color="red")
-        else :
-            typer.echo(project[0])
+        list()
+        return
+
+    project = None
+    for p in projects_config.list_projects(include_deleted=True):
+        if p.name == name:
+            project = p
+            break
+            
+    if project is None:
+        console.print(f"[error]No project found with name:[/error] [highlight]{name}[/highlight]")
+    else:
+        metadata_table = Table(show_header=False, box=None)
+        for k, v in project.metadata.items():
+            metadata_table.add_row(f"[bold cyan]{k}:[/bold cyan]", str(v))
+            
+        content = Text.assemble(
+            ("Project Name: ", "bold white"), (project.name, "highlight"), "\n",
+            ("Root Path:    ", "bold white"), (str(project.root), "info"), "\n",
+            ("Status:       ", "bold white"), ("Deleted" if project.deleted else "Active", "success" if not project.deleted else "error"), "\n",
+            ("Metadata:     ", "bold white"), "\n" if project.metadata else "None"
+        )
+        
+        panel = Panel(
+            content,
+            title=f"[bold cyan]Project Details[/bold cyan]",
+            border_style="blue",
+            expand=False
+        )
+        console.print(panel)
+        if project.metadata:
+            console.print(metadata_table, indent_guides=True)
             
 
 
@@ -109,28 +173,30 @@ def init(path: Annotated[Path, typer.Argument(help="Directory to initialize and 
     metadata = parse_key_value(metadata or [])
     
     
-    if  (path in [p.root for p in projects_config.list_projects()]):
+    if (path in [p.root for p in projects_config.list_projects()]):
         if (project_name in [p.name for p in projects_config.list_projects()]):
-            richprint(f"Warning: Project already exists at {path} with name: {project_name}.\n",color="yellow")
+            console.print(f"[warning]Warning:[/warning] Project already exists at [info]{path}[/info] with name: [highlight]{project_name}[/highlight].\n")
             
             if overwrite is False:
-                conf = typer.confirm("Do you want to overwrite on the project details")
+                conf = typer.confirm("Do you want to overwrite the project details?")
                 if conf:
-                        projects_config.add_or_update(name=project_name, root=path,metadata=metadata,overwrite=True)
+                        projects_config.add_or_update(name=project_name, root=path, metadata=metadata, overwrite=True)
                         projects_config.set_cwp(project_name)
+                        console.print(f"[success]Project {project_name} details updated and set as active.[/success]")
                 else :
-                    typer.Exit(0)
+                    raise typer.Exit(0)
             else:
-                richprint("Overwritting the project details")
-                projects_config.add_or_update(name=project_name, root=path,metadata=metadata,overwrite=True)
+                console.print("[info]Overwriting project details...[/info]")
+                projects_config.add_or_update(name=project_name, root=path, metadata=metadata, overwrite=True)
                 projects_config.set_cwp(project_name)
+                console.print(f"[success]Project {project_name} details updated and set as active.[/success]")
         else:
-            richprint("Name of a project can't be changed. All projects have unique name and location","red")
+            console.print("[error]Error:[/error] Name of a project can't be changed. All projects must have a unique name and location.", style="error")
     else:
-        richprint("Adding a new project...")
-        projects_config.add_or_update(name=project_name, root=path,metadata=metadata)
+        console.print("[info]Adding a new project...[/info]")
+        projects_config.add_or_update(name=project_name, root=path, metadata=metadata)
         projects_config.set_cwp(project_name)
-        richprint(f"Project {project_name} at {str(path)} is set at current working project")
+        console.print(f"[success]Success![/success] Project [highlight]{project_name}[/highlight] at [info]{str(path)}[/info] is now the active project.")
         
         
 @app.command(help="Set a project to work on with mcp")
@@ -139,10 +205,10 @@ def set(name: Optional[str]):
     
     if name is not None:
         if name not in [p.name for p in projects_config.list_projects()]:
-            richprint(f"No projects with name : {name}","red")
+            console.print(f"[error]Error:[/error] No project with name: [highlight]{name}[/highlight]")
         else:
             projects_config.set_cwp(name)
-            richprint(f"Current working project is {projects_config.get_cwp()}")
+            console.print(f"Current working project is now: [success]{projects_config.get_cwp()}[/success]")
 
     else:
         if getcurrentProject() is not None:
@@ -153,17 +219,21 @@ def set(name: Optional[str]):
 @app.command(help="Get the current working project")
 def get():
     global projects_config
-    richprint(projects_config.get_cwp() or "No Projects\n")
+    cwp = projects_config.get_cwp()
+    if cwp:
+        console.print(f"Current working project: [success]{cwp}[/success]")
+    else:
+        console.print("[warning]No project is currently set.[/warning]")
         
 @app.command(help="Delete a project by Name")
 def delete(name: Annotated[str,"Name of the Project that you want to delete"]):
     global projects_config
     
     if name not in [p.name for p in projects_config.list_projects()]:
-        richprint(f"No projects with the name : {name}","red")
+        console.print(f"[error]Error:[/error] No projects with the name: [highlight]{name}[/highlight]")
     else:
         projects_config.delete(name=name)
-        richprint(f"Deleted {name}")
+        console.print(f"[success]Deleted project:[/success] [highlight]{name}[/highlight]")
         
         
 # @app.command(help="Recover a deleted project (Only recovers the config file)")
@@ -204,11 +274,12 @@ def data(
         wd = WorkingDirectory(pr.root)
         mn = wd._manager
         with mn:
-            mn.update_dataset(name=name,source=source,
-                                    dtype=dtype,description=description,
-                                    metadata=metadata)
+            mn.update_dataset(name=name, source=source,
+                             dtype=dtype, description=description,
+                             metadata=metadata)
+        console.print(f"[success]Successfully added/updated dataset:[/success] [highlight]{name}[/highlight]")
     else:
-        richprint("No current working projects found, Use 'set' command to set a project as working project","red")   
+        console.print("[error]Error:[/error] No current working project found. Use [info]'automl set'[/info] to set a project.", style="error")
     
 
 
@@ -270,8 +341,15 @@ def mcp():
             }
         }
     }
-    richprint("You mcp server config: \n")
-    richprint(schema,color="yellow",json_=True)
+    
+    print_header()
+    console.print(Panel("[bold cyan]MCP Server Configuration[/bold cyan]\nCopy the following JSON into your MCP settings file.", border_style="blue"))
+    
+    schema_json = json.dumps(schema, indent=4)
+    syntax = Syntax(schema_json, "json", theme="monokai", line_numbers=True)
+    console.print(syntax)
+    
+    console.print("\n[dim]Tip: You can use this configuration in Claude Desktop or other MCP-compatible clients.[/dim]")
     
 
 if __name__ == "__main__":

@@ -1,11 +1,14 @@
 from pathlib import Path
 from typing import Optional
+import nbformat
+from nbformat.v4 import new_code_cell, new_markdown_cell
 
 from dist_automl.working_dir.yaml_class import YamlConfig, YamlManager
 
 
 class WorkingDirectory:
     BASE_FOLDERS = ("analysis", "utils", "pipeline")
+    jupyter_file = "experiment.ipynb"
 
     def __init__(
         self,
@@ -134,6 +137,56 @@ class WorkingDirectory:
             abs_path.unlink()
             
 #-----------------------------------------------------------------
+
+
+    def manage_notebook_cell(self, action: str, index: int = None, content: str = None, cell_type: str = "code"):
+        """
+        Unified tool for managing the experiment.ipynb notebook in project root.
+        Actions: 'read', 'add', 'edit', 'delete'
+        """
+        file_path = self._root / self.jupyter_file
+        
+        # Load or initialize the notebook
+        if file_path.exists():
+            with file_path.open('r', encoding='utf-8') as f:
+                nb = nbformat.read(f, as_version=4)
+        elif action == 'add':
+            nb = nbformat.v4.new_notebook()
+        else:
+            return f"Error: File {self.jupyter_file} not found in project root."
+
+        # Perform the requested action
+        if action == 'read':
+            if index is not None:
+                if 0 <= index < len(nb.cells):
+                    return {"index": index, "cell": nb.cells[index]}
+                return "Error: Invalid index."
+            return [{"index": i, "type": c.cell_type, "source": c.source} for i, c in enumerate(nb.cells)]
+
+        elif action == 'add':
+            new_cell = new_code_cell(content or "") if cell_type == "code" else new_markdown_cell(content or "")
+            if index is not None:
+                nb.cells.insert(index, new_cell)
+            else:
+                nb.cells.append(new_cell)
+
+        elif action == 'edit':
+            if index is not None and 0 <= index < len(nb.cells):
+                nb.cells[index].source = content if content is not None else nb.cells[index].source
+            else:
+                return "Error: Invalid index."
+
+        elif action == 'delete':
+            if index is not None and 0 <= index < len(nb.cells):
+                nb.cells.pop(index)
+            else:
+                return "Error: Invalid index."
+
+        # Save and return status
+        with file_path.open('w', encoding='utf-8') as f:
+            nbformat.write(nb, f)
+        return f"Success: {action} operation completed on {self.jupyter_file}."
+
 
     def update_utils(
         self,

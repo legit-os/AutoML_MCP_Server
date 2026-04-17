@@ -193,6 +193,21 @@ def write_util(name: str, content: str, overwrite : bool = False, metadata: dict
     
     return "Updated, you can view project info to confirm"
 
+@server.tool(tags={"file"})
+def manage_experiment_notebook(action: Literal["read", "add", "edit", "delete"], 
+                               index: int = None, 
+                               content: str = None, 
+                               cell_type: Literal["code", "markdown"] = "code"):
+    """
+    Manage cells in the experiment.ipynb notebook located at the project root.
+    Actions: 
+    - read: Returns all cells or a specific cell if index is provided.
+    - add: Adds a new cell at index (or end).
+    - edit: Overwrites cell content at index.
+    - delete: Removes cell at index.
+    """
+    return wd.manage_notebook_cell(action=action, index=index, content=content, cell_type=cell_type)
+
 # @server.tool()
 # def write_file(file_type:Literal["util","pipeline_element"],
 #                name: str,
