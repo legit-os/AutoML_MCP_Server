@@ -1,8 +1,9 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import Widget from './Widget';
 
 const Canvas = ({ widgets, updateWidgetLayout, apiBase }) => {
+  const [isZoomKeyHeld, setIsZoomKeyHeld] = useState(false);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -10,15 +11,27 @@ const Canvas = ({ widgets, updateWidgetLayout, apiBase }) => {
       e.preventDefault();
     };
 
+    const handleKeyDown = (e) => {
+      if (e.key === '`') setIsZoomKeyHeld(true);
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key === '`') setIsZoomKeyHeld(false);
+    };
+
     const container = containerRef.current;
     if (container) {
       container.addEventListener('wheel', handleWheel, { passive: false });
     }
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
 
     return () => {
       if (container) {
         container.removeEventListener('wheel', handleWheel);
       }
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
 
@@ -30,7 +43,10 @@ const Canvas = ({ widgets, updateWidgetLayout, apiBase }) => {
         maxScale={3}
         panning={{ excluded: ['drag-handle', 'widget-body'] }}
         wheel={{
-          disabled: true
+          disabled: !isZoomKeyHeld,
+          smooth: true,
+          smoothStep: 0.002,
+          step: 0.05
         }}
       >
         <TransformComponent
