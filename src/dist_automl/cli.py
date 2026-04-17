@@ -45,7 +45,7 @@ def print_header():
     """Prints a branded header for the CLI."""
     console.print()
     header_text = Text("AutoML MCP Manager", style="bold blue")
-    console.print(Panel(header_text, subtitle="[dim]End-to-End ML Pipeline Orchestrator[/dim]", expand=False, border_style="blue"))
+    console.print(Panel(header_text, subtitle="[dim]ML Pipeline Orchestrator[/dim]", expand=True, border_style="blue"))
     console.print()
 
 projects_config = ProjectJSON()
@@ -310,19 +310,7 @@ def dashboard(
     
     uvicorn.run(dashboard_app, host=host, port=port)
 
-def find_root(package_name="src"):
-    current_path = Path(__file__)
-    root_path = None
-    print(current_path.parents)
-    for parent in [current_path] + list(current_path.parents):
-        if parent.name == package_name:
-            root_path = parent
-            break
-            
-    if not root_path:
-        root_path = current_path.parent
-    
-    return str(root_path)
+
     
 @app.command()
 def mcp():
@@ -345,9 +333,7 @@ def mcp():
     print_header()
     console.print(Panel("[bold cyan]MCP Server Configuration[/bold cyan]\nCopy the following JSON into your MCP settings file.", border_style="blue"))
     
-    schema_json = json.dumps(schema, indent=4)
-    syntax = Syntax(schema_json, "json", theme="monokai", line_numbers=True)
-    console.print(syntax)
+    richprint(schema,color="green",json_=True)
     
     console.print("\n[dim]Tip: You can use this configuration in Claude Desktop or other MCP-compatible clients.[/dim]")
     
