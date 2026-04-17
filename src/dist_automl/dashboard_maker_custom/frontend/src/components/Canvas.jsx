@@ -11,10 +11,10 @@ const Canvas = ({ widgets, updateWidgetLayout, apiBase }) => {
         maxScale={3}
         panning={{ excluded: ['drag-handle', 'widget-body'] }}
         wheel={{
-          disabled: true,
-          // smooth: false,
-          // smoothStep: 0.005,
-          // activationKeys: ['Control']
+          disabled: false,
+          smooth: true,
+          smoothStep: 0.002,
+          step: 0.05
         }}
       >
         <TransformComponent
