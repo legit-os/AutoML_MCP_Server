@@ -1,20 +1,36 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import Widget from './Widget';
 
 const Canvas = ({ widgets, updateWidgetLayout, apiBase }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleWheel = (e) => {
+      e.preventDefault();
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, []);
+
   return (
-    <div className="canvas-wrapper">
+    <div className="canvas-wrapper" ref={containerRef}>
       <TransformWrapper
         initialScale={1}
         minScale={0.1}
         maxScale={3}
         panning={{ excluded: ['drag-handle', 'widget-body'] }}
         wheel={{
-          disabled: false,
-          smooth: true,
-          smoothStep: 0.002,
-          step: 0.05
+          disabled: true
         }}
       >
         <TransformComponent
