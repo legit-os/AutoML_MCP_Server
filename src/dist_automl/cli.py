@@ -110,44 +110,44 @@ def list(all: Annotated[bool, typer.Option("-a", "--all")] = False):
     console.print(table)
     
     
-@app.command(help="Find and see a specific project by name")
-def show(name: Optional[str] = None):
-    global projects_config
-    print_header()
+# @app.command(help="Find and see a specific project by name")
+# def show(name: Optional[str] = None):
+#     global projects_config
+#     print_header()
     
-    if name is None:
-        list()
-        return
+#     if name is None:
+#         list()
+#         return
 
-    project = None
-    for p in projects_config.list_projects(include_deleted=True):
-        if p.name == name:
-            project = p
-            break
+#     project = None
+#     for p in projects_config.list_projects(include_deleted=True):
+#         if p.name == name:
+#             project = p
+#             break
             
-    if project is None:
-        console.print(f"[error]No project found with name:[/error] [highlight]{name}[/highlight]")
-    else:
-        metadata_table = Table(show_header=False, box=None)
-        for k, v in project.metadata.items():
-            metadata_table.add_row(f"[bold cyan]{k}:[/bold cyan]", str(v))
+#     if project is None:
+#         console.print(f"[error]No project found with name:[/error] [highlight]{name}[/highlight]")
+#     else:
+#         metadata_table = Table(show_header=False, box=None)
+#         for k, v in project.metadata.items():
+#             metadata_table.add_row(f"[bold cyan]{k}:[/bold cyan]", str(v))
             
-        content = Text.assemble(
-            ("Project Name: ", "bold white"), (project.name, "highlight"), "\n",
-            ("Root Path:    ", "bold white"), (str(project.root), "info"), "\n",
-            ("Status:       ", "bold white"), ("Deleted" if project.deleted else "Active", "success" if not project.deleted else "error"), "\n",
-            ("Metadata:     ", "bold white"), "\n" if project.metadata else "None"
-        )
+#         content = Text.assemble(
+#             ("Project Name: ", "bold white"), (project.name, "highlight"), "\n",
+#             ("Root Path:    ", "bold white"), (str(project.root), "info"), "\n",
+#             ("Status:       ", "bold white"), ("Deleted" if project.deleted else "Active", "success" if not project.deleted else "error"), "\n",
+#             ("Metadata:     ", "bold white"), "\n" if project.metadata else "None"
+#         )
         
-        panel = Panel(
-            content,
-            title=f"[bold cyan]Project Details[/bold cyan]",
-            border_style="blue",
-            expand=False
-        )
-        console.print(panel)
-        if project.metadata:
-            console.print(metadata_table, indent_guides=True)
+#         panel = Panel(
+#             content,
+#             title=f"[bold cyan]Project Details[/bold cyan]",
+#             border_style="blue",
+#             expand=False
+#         )
+#         console.print(panel)
+#         if project.metadata:
+#             console.print(metadata_table, indent_guides=True)
             
 
 
