@@ -68,14 +68,18 @@ function App() {
     }
   };
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
   return (
-    <div className="app-container">
+    <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar 
         metadata={metadata} 
         activeWidgets={activeWidgets} 
         toggleWidget={toggleWidget}
         onRefresh={fetchMetadata}
         loading={loading}
+        isCollapsed={isSidebarCollapsed}
+        onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
       <main className="main-content">
         <Canvas 
