@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
+import WidgetPicker from './components/WidgetPicker';
 import './App.css';
 
 // Base API URL
-const API_BASE = window.location.origin === 'http://localhost:5173' 
-  ? 'http://localhost:8000' 
+const API_BASE = window.location.origin === 'http://localhost:5173'
+  ? 'http://localhost:8000'
   : window.location.origin;
 
 function App() {
@@ -43,51 +43,53 @@ function App() {
         scriptKey,
         varName,
         ...info,
-        x: info.x || 50,
-        y: info.y || 50,
-        width: info.width || 400,
-        height: info.height || 300
+        x: info.x || 80 + activeWidgets.length * 30,
+        y: info.y || 80 + activeWidgets.length * 30,
+        width: info.width || 420,
+        height: info.height || 320,
       }]);
     }
   };
 
   const updateWidgetLayout = async (id, layout) => {
-    // Update local state immediately for performance
+    // Update local state immediately
     setActiveWidgets(prev => prev.map(w => w.id === id ? { ...w, ...layout } : w));
 
-    // Save to backend
+    // Persist to backend
+    const widget = activeWidgets.find(w => w.id === id);
+    if (!widget) return;
+
     const [scriptKey, varName] = id.split('::');
+    const merged = { ...widget, ...layout };
+
     try {
       await axios.post(`${API_BASE}/api/update_layout`, {
         script_key: scriptKey,
         var_name: varName,
-        ...layout
+        x: merged.x,
+        y: merged.y,
+        width: merged.width,
+        height: merged.height,
       });
     } catch (error) {
       console.error('Error updating layout:', error);
     }
   };
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-
   return (
-    <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <Sidebar 
-        metadata={metadata} 
-        activeWidgets={activeWidgets} 
+    <div className="app-container">
+      <Canvas
+        widgets={activeWidgets}
+        updateWidgetLayout={updateWidgetLayout}
+        apiBase={API_BASE}
+      />
+      <WidgetPicker
+        metadata={metadata}
+        activeWidgets={activeWidgets}
         toggleWidget={toggleWidget}
         onRefresh={fetchMetadata}
         loading={loading}
-        isCollapsed={isSidebarCollapsed}
-        onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
-      <main className="main-content">
-        <Canvas 
-          widgets={activeWidgets} 
-          updateWidgetLayout={updateWidgetLayout}
-          apiBase={API_BASE}
-        />
-      </main>
     </div>
   );
 }

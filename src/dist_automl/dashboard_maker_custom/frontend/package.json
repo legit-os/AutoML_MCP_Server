@@ -10,13 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tanstack/react-table": "^8.21.3",
     "axios": "^1.15.0",
     "lucide-react": "^1.8.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-rnd": "^10.5.3",
-    "react-zoom-pan-pinch": "^4.0.3"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

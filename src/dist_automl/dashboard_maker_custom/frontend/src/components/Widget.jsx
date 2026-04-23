@@ -1,61 +1,94 @@
-import React, { useState, useEffect } from 'react';
-import { Rnd } from 'react-rnd';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { 
-  Table as TableIcon, 
-  Image as ImageIcon, 
-  Hash, 
-  List as ListIcon, 
+import {
+  Table as TableIcon,
+  Image as ImageIcon,
+  Hash,
+  List as ListIcon,
   Code,
-  Maximize2
 } from 'lucide-react';
 
+/* ---- Content Renderers ---- */
+
 const TableRenderer = ({ data }) => {
-  if (!data || !data.columns) return <div>Loading table...</div>;
+  if (!data || !data.columns) return <div className="widget-loading">Loading table…</div>;
   return (
-    <div className="table-container" style={{ padding: '10px' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+    <div className="table-container">
+      <table>
         <thead>
-          <tr style={{ textAlign: 'left', borderBottom: '1px solid #444' }}>
-            {data.columns.map(col => <th key={col} style={{ padding: '8px' }}>{col}</th>)}
+          <tr>
+            {data.columns.map(col => <th key={col}>{col}</th>)}
           </tr>
         </thead>
         <tbody>
           {data.rows.slice(0, 100).map((row, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid #333' }}>
-              {data.columns.map(col => <td key={col} style={{ padding: '8px' }}>{String(row[col])}</td>)}
+            <tr key={i}>
+              {data.columns.map(col => <td key={col}>{String(row[col])}</td>)}
             </tr>
           ))}
         </tbody>
       </table>
-      {data.rows.length > 100 && <p style={{ fontSize: '0.7rem', padding: '10px', color: '#888' }}>Showing first 100 rows...</p>}
+      {data.rows.length > 100 && <p className="table-overflow-note">Showing first 100 of {data.rows.length} rows</p>}
     </div>
   );
 };
 
 const ImageRenderer = ({ src }) => (
-  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
-    <img src={src} alt="Analysis Plot" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+  <div className="image-container">
+    <img src={src} alt="Analysis Plot" />
   </div>
 );
 
 const JsonRenderer = ({ data }) => (
-  <pre style={{ padding: '15px', fontSize: '0.8rem', color: '#34d399', overflow: 'auto', height: '100%' }}>
+  <pre className="json-container">
     {JSON.stringify(data, null, 2)}
   </pre>
 );
 
 const KpiRenderer = ({ data, name }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px' }}>
-    <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#3b82f6' }}>{data.value}</div>
-    <div style={{ fontSize: '0.9rem', color: '#888' }}>{name}</div>
+  <div className="kpi-container">
+    <div className="kpi-value">{data.value}</div>
+    <div className="kpi-label">{name}</div>
   </div>
 );
 
-const Widget = ({ widget, onLayoutChange, apiBase }) => {
+/* ---- Resize handle definitions ---- */
+const HANDLES = [
+  // Corners
+  { key: 'nw', cls: 'corner', dx: -1, dy: -1 },
+  { key: 'ne', cls: 'corner', dx: 1, dy: -1 },
+  { key: 'sw', cls: 'corner', dx: -1, dy: 1 },
+  { key: 'se', cls: 'corner', dx: 1, dy: 1 },
+  // Edges
+  { key: 'n', cls: 'edge', dx: 0, dy: -1 },
+  { key: 's', cls: 'edge', dx: 0, dy: 1 },
+  { key: 'w', cls: 'edge', dx: -1, dy: 0 },
+  { key: 'e', cls: 'edge', dx: 1, dy: 0 },
+];
+
+const MIN_WIDTH = 180;
+const MIN_HEIGHT = 120;
+
+/* ---- Widget Component ---- */
+
+const Widget = ({
+  widget,
+  onLayoutChange,
+  apiBase,
+  scale,
+  isSelected,
+  onSelect,
+  onPointerEnterWidget,
+  onPointerLeaveWidget,
+}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const isDragging = useRef(false);
+  const isResizing = useRef(false);
+  const dragStart = useRef({ mx: 0, my: 0, wx: 0, wy: 0 });
+  const resizeStart = useRef({ mx: 0, my: 0, wx: 0, wy: 0, ww: 0, wh: 0, dx: 0, dy: 0 });
 
+  // Fetch widget data
   useEffect(() => {
     const fetchData = async () => {
       if (widget.type === 'figure') {
@@ -63,7 +96,6 @@ const Widget = ({ widget, onLayoutChange, apiBase }) => {
         setLoading(false);
         return;
       }
-
       try {
         const response = await axios.get(`${apiBase}/api/data?path=${widget.path}`);
         setData(response.data);
@@ -76,9 +108,110 @@ const Widget = ({ widget, onLayoutChange, apiBase }) => {
     fetchData();
   }, [widget.path, widget.type, apiBase]);
 
+  // ---- Drag (header) ----
+  const onDragStart = useCallback((e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    isDragging.current = true;
+    onSelect();
+    dragStart.current = {
+      mx: e.clientX,
+      my: e.clientY,
+      wx: widget.x,
+      wy: widget.y,
+    };
+
+    const onMove = (ev) => {
+      if (!isDragging.current) return;
+      const dx = (ev.clientX - dragStart.current.mx) / scale;
+      const dy = (ev.clientY - dragStart.current.my) / scale;
+      onLayoutChange(widget.id, {
+        x: dragStart.current.wx + dx,
+        y: dragStart.current.wy + dy,
+      });
+    };
+
+    const onUp = () => {
+      isDragging.current = false;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [widget.id, widget.x, widget.y, scale, onLayoutChange, onSelect]);
+
+  // ---- Resize (handles) ----
+  const onResizeStart = useCallback((e, handleDx, handleDy) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    isResizing.current = true;
+    onSelect();
+    resizeStart.current = {
+      mx: e.clientX,
+      my: e.clientY,
+      wx: widget.x,
+      wy: widget.y,
+      ww: widget.width,
+      wh: widget.height,
+      dx: handleDx,
+      dy: handleDy,
+    };
+
+    const onMove = (ev) => {
+      if (!isResizing.current) return;
+      const rs = resizeStart.current;
+      const deltaX = (ev.clientX - rs.mx) / scale;
+      const deltaY = (ev.clientY - rs.my) / scale;
+
+      let newX = rs.wx;
+      let newY = rs.wy;
+      let newW = rs.ww;
+      let newH = rs.wh;
+
+      // Horizontal
+      if (rs.dx === 1) {
+        newW = Math.max(MIN_WIDTH, rs.ww + deltaX);
+      } else if (rs.dx === -1) {
+        const maxDx = rs.ww - MIN_WIDTH;
+        const clampedDx = Math.min(deltaX, maxDx);
+        newX = rs.wx + clampedDx;
+        newW = rs.ww - clampedDx;
+      }
+
+      // Vertical
+      if (rs.dy === 1) {
+        newH = Math.max(MIN_HEIGHT, rs.wh + deltaY);
+      } else if (rs.dy === -1) {
+        const maxDy = rs.wh - MIN_HEIGHT;
+        const clampedDy = Math.min(deltaY, maxDy);
+        newY = rs.wy + clampedDy;
+        newH = rs.wh - clampedDy;
+      }
+
+      onLayoutChange(widget.id, {
+        x: newX,
+        y: newY,
+        width: newW,
+        height: newH,
+      });
+    };
+
+    const onUp = () => {
+      isResizing.current = false;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [widget.id, widget.x, widget.y, widget.width, widget.height, scale, onLayoutChange, onSelect]);
+
   const renderContent = () => {
-    if (loading) return <div className="empty-state">Loading...</div>;
-    if (!data) return <div className="empty-state">No data</div>;
+    if (loading) return <div className="widget-loading">Loading…</div>;
+    if (!data) return <div className="widget-no-data">No data</div>;
 
     switch (widget.type) {
       case 'dataframe': return <TableRenderer data={data} />;
@@ -86,55 +219,61 @@ const Widget = ({ widget, onLayoutChange, apiBase }) => {
       case 'dict':
       case 'list': return <JsonRenderer data={data} />;
       case 'kpi': return <KpiRenderer data={data} name={widget.varName} />;
-      default: return <div>Unknown type: {widget.type}</div>;
+      default: return <div className="widget-no-data">Unknown type: {widget.type}</div>;
     }
   };
 
   const getIcon = () => {
+    const size = 14;
     switch (widget.type) {
-      case 'dataframe': return <TableIcon size={14} />;
-      case 'figure': return <ImageIcon size={14} />;
-      case 'kpi': return <Hash size={14} />;
-      case 'list': return <ListIcon size={14} />;
-      default: return <Code size={14} />;
+      case 'dataframe': return <TableIcon size={size} />;
+      case 'figure': return <ImageIcon size={size} />;
+      case 'kpi': return <Hash size={size} />;
+      case 'list': return <ListIcon size={size} />;
+      default: return <Code size={size} />;
     }
   };
 
   return (
-    <Rnd
-      default={{
-        x: widget.x,
-        y: widget.y,
-        width: widget.width,
-        height: widget.height,
+    <div
+      className={`widget-wrapper ${isSelected ? 'selected' : ''}`}
+      style={{
+        left: `${widget.x}px`,
+        top: `${widget.y}px`,
+        width: `${widget.width}px`,
+        height: `${widget.height}px`,
       }}
-      bounds="parent"
-      dragHandleClassName="drag-handle"
-      onDragStop={(e, d) => onLayoutChange(widget.id, { x: d.x, y: d.y })}
-      onResizeStop={(e, direction, ref, delta, position) => {
-        onLayoutChange(widget.id, {
-          width: parseInt(ref.style.width),
-          height: parseInt(ref.style.height),
-          ...position
-        });
+      onPointerDown={(e) => {
+        e.stopPropagation(); // Prevent canvas panning when clicking on widget
+        onSelect();
       }}
-      style={{ zIndex: 10 }}
+      onPointerEnter={onPointerEnterWidget}
+      onPointerLeave={onPointerLeaveWidget}
     >
-      <div className="widget-card" style={{ width: '100%', height: '100%' }}>
-        <div className="widget-header drag-handle">
-          <div className="sidebar-title" style={{ gap: '8px', fontSize: '0.85rem' }}>
-            {getIcon()}
+      <div className="widget-card">
+        {/* Drag handle = the header */}
+        <div className="widget-header" onPointerDown={onDragStart}>
+          <div className="widget-header-left">
+            <span className="widget-header-icon">{getIcon()}</span>
             <span className="widget-title">{widget.varName}</span>
           </div>
-          <div className="var-type-badge" style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' }}>
-            {widget.type}
-          </div>
+          <span className="widget-type-badge">{widget.type}</span>
         </div>
+
         <div className="widget-body">
           {renderContent()}
         </div>
       </div>
-    </Rnd>
+
+      {/* Resize handles */}
+      {HANDLES.map(h => (
+        <div
+          key={h.key}
+          className={`resize-handle ${h.cls} ${h.key}`}
+          onPointerDown={(e) => onResizeStart(e, h.dx, h.dy)}
+        />
+      ))}
+    </div>
   );
 };
 
