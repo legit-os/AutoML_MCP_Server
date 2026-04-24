@@ -202,7 +202,7 @@ def manage_experiment_notebook(action: Literal["read", "add", "edit", "delete"],
     Manage cells in the experiment.ipynb notebook located at the project root.
     Actions: 
     - read: Returns all cells or a specific cell if index is provided.
-    - add: Adds a new cell at index (or end).
+    - add: Adds a new cell at index (or end if index is None).
     - edit: Overwrites cell content at index.
     - delete: Removes cell at index.
     """
