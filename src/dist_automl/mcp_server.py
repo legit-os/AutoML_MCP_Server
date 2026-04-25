@@ -118,38 +118,48 @@ def get_current_project_info():
 #         return f"Error: An unexpected error occurred: {str(e)}"
 
 @server.tool(tags={serverstate.info})
-def read_file(path: str):
+def read_or_ls_dir(path: str):
     """
-    Read a file from the project. 
-    'path' should be in the format 'stage.element' for pipeline files (e.g., 'preprocessing.scaler')
-    or 'utils.name' for utility files (e.g., 'utils.helper').
+    Read a file or list directory contents from the project.
+    'path' can be:
+    1. A path relative to project root (e.g., 'pipeline', 'utils/helper.py', '.')
+    2. A registered name in format 'stage.element' (e.g., 'preprocessing.scaler')
     """
-    if "." not in path:
-        return "Error: Path must be in 'stage.element' or 'utils.name' format."
-        
-    parts = path.split(".", 1)
-    prefix = parts[0]
-    name = parts[1]
+    abs_path = cwp_path / path
     
-    file_info = None
-    if prefix == "utils":
-        file_info = wd.config.get(f"utils.files.{name}")
-    else:
-        file_info = wd.config.get(f"pipeline.stages.{prefix}.elements.{name}")
+    if not abs_path.exists() and "." in path:
+        parts = path.split(".", 1)
+        prefix = parts[0]
+        name = parts[1]
         
-    if not file_info or "path" not in file_info:
-        return f"Error: Could not find file registered for '{path}' in config."
-        
-    rel_path = Path(file_info["path"])
-    abs_path = cwp_path / rel_path
-    
+        file_info = None
+        if prefix == "utils":
+            file_info = wd.config.get(f"utils.files.{name}")
+        else:
+            file_info = wd.config.get(f"pipeline.stages.{prefix}.elements.{name}")
+            
+        if file_info and "path" in file_info:
+            abs_path = cwp_path / file_info["path"]
+
     if not abs_path.exists():
-        return f"Error: File '{rel_path}' exists in config but not on disk."
-        
-    try:
-        return abs_path.read_text(encoding="utf-8")
-    except Exception as e:
-        return f"Error reading file: {str(e)}"
+        return f"Error: Path '{path}' does not exist relative to project root or as a registered element."
+
+    if abs_path.is_file():
+        try:
+            return abs_path.read_text(encoding="utf-8")
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+    elif abs_path.is_dir():
+        try:
+            items = []
+            for item in abs_path.iterdir():
+                type_str = "[DIR] " if item.is_dir() else "[FILE]"
+                items.append(f"{type_str} {item.name}")
+            return "\n".join(sorted(items)) if items else "Directory is empty."
+        except Exception as e:
+            return f"Error listing directory: {str(e)}"
+    else:
+        return f"Error: '{path}' is neither a file nor a directory."
         
 
 # @server.tool()
@@ -310,11 +320,8 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     
     script_path = cwp_path / "analysis" / f"{name}.py"
     
-    # Write the analysis script to disk first
     wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata={}, content=file_content)
-    # Then run it and capture the specified variables
     captured = capture_script_outputs(project_root=cwp_path, script_path=script_path, variables=capture_variables)
-    # Update metadata with what was captured
     wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata=captured, content=file_content)
     return "captured provided variables and added to dashboard"
     
