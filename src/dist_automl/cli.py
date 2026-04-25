@@ -255,12 +255,12 @@ def validate_source(value: str):
     
     return value
 
-@app.command(help="Add a dataset to the project config")
-def data(
+@app.command(help="Add or update a dataset in the project configuration", name="dataset")
+def dataset(
     source: Annotated[str, typer.Argument(callback=validate_source, help="A path or name string")],
-    name : Annotated[str,typer.Option("--name","-n")],
-    dtype: Annotated[str, typer.Option("--type","-t")] = None,
-    description : Annotated[str, typer.Option("-d","--des")] = None,
+    name : Annotated[str,typer.Option("--name","-n", help="Unique name for the dataset")],
+    dtype: Annotated[Optional[str], typer.Option("--type","-t", help="Type of dataset (csv, parquet, etc.)")] = None,
+    description : Annotated[Optional[str], typer.Option("-d","--des", help="Brief description of the dataset")] = None,
     metadata: Annotated[Optional[List[str]], typer.Option("--meta","-m", help="Key-value pairs like -m k=v")] = None
     
 ):
@@ -269,17 +269,28 @@ def data(
     metadata = parse_key_value(metadata or [])
     
     pr = getcurrentProject()
-    print(pr)
     if pr is not None:
         wd = WorkingDirectory(pr.root)
-        mn = wd._manager
-        with mn:
-            mn.update_dataset(name=name, source=source,
-                             dtype=dtype, description=description,
-                             metadata=metadata)
+        wd.update_dataset(name=name, source=source,
+                         dtype=dtype, description=description,
+                         metadata=metadata)
         console.print(f"[success]Successfully added/updated dataset:[/success] [highlight]{name}[/highlight]")
     else:
         console.print("[error]Error:[/error] No current working project found. Use [info]'automl set'[/info] to set a project.", style="error")
+
+@app.command(help="Delete a dataset from the project configuration", name="dataset-delete")
+def dataset_delete(
+    name: Annotated[str, typer.Argument(help="Name of the dataset to delete")]
+):
+    global projects_config
+    
+    pr = getcurrentProject()
+    if pr is not None:
+        wd = WorkingDirectory(pr.root)
+        wd.delete_dataset(name=name)
+        console.print(f"[success]Successfully deleted dataset:[/success] [highlight]{name}[/highlight]")
+    else:
+        console.print("[error]Error:[/error] No current working project found.", style="error")
     
 
 

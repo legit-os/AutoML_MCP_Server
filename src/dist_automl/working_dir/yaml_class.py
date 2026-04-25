@@ -425,7 +425,14 @@ class YamlManager():
     
     
     def delete_dataset(self, name: str):
-        self._config.delete(f"datasets.files.{name}")
+        cfg = self._config
+
+        dataset_key = f"datasets.files.{name}"
+        if cfg.get(dataset_key) is None:
+            raise ValueError(f"Dataset '{name}' does not exist.")
+
+        cfg.delete(dataset_key)
+
 
     def __enter__(self):
         self._config._in_transaction = True

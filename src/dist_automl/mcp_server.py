@@ -53,19 +53,19 @@ def change_tool_list(state: Literal["info_and_file_reading","file_writing","anal
     
     if state == "info_and_file_reading":
         serverstate.state  = "info"
-        server.enable(tags={"info"},only=True)
+        server.enable(tags={serverstate.info},only=True)
     elif state == "analysis_and_dashboard":
         serverstate.state = "dashboard"
-        server.enable(tags={"dashboard"},only=True)
+        server.enable(tags={serverstate.dash},only=True)
     elif state == "file_writing":
         serverstate.state = "file"
-        server.enable(tags={"file"},only=True)
+        server.enable(tags={serverstate.file},only=True)
     
     server.enable(names={serverstate.state_changer})
     
     return "Enabled requested tools and disabled others, you can check the tools exposed to you"
 
-@server.tool(tags={"info"})
+@server.tool(tags={serverstate.info})
 def get_current_project_info():
     """
     Get the Projects info that is stored in the config file of the Project
@@ -84,7 +84,7 @@ def get_current_project_info():
     
     
 
-# @server.tool(tags={"info"})
+# @server.tool(tags={serverstate.info})
 # def run_file(file_path: str, timeout: float, arguments: list[str] = None):
 #     """Run a file you created, assuming that the file captures arguments provided 
 #     from command line, you can provide arguments that your file requires.
@@ -117,7 +117,7 @@ def get_current_project_info():
 #     except Exception as e:
 #         return f"Error: An unexpected error occurred: {str(e)}"
 
-@server.tool(tags={"info"})
+@server.tool(tags={serverstate.info})
 def read_file(path: str):
     """
     Read a file from the project. 
@@ -162,7 +162,7 @@ def read_file(path: str):
 
 
 
-@server.tool(tags={"file"})
+@server.tool(tags={serverstate.file})
 def write_pipeline_element(stage: str, name: str, content: str,
                            depends_on:list[str] = None,
                            metadata: dict = None,
@@ -184,7 +184,7 @@ def write_pipeline_element(stage: str, name: str, content: str,
                                overwrite=overwrite)
     return "Updated config file, you can view project info to confirm"
 
-@server.tool(tags={"file"})
+@server.tool(tags={serverstate.file})
 def write_util(name: str, content: str, overwrite : bool = False, metadata: dict = None):
     "Write helper files for the pipeline"
     
@@ -193,7 +193,7 @@ def write_util(name: str, content: str, overwrite : bool = False, metadata: dict
     
     return "Updated, you can view project info to confirm"
 
-@server.tool(tags={"file"})
+@server.tool(tags={serverstate.file})
 def manage_experiment_notebook(action: Literal["read", "add", "edit", "delete"], 
                                index: int = None, 
                                content: str = None, 
@@ -236,7 +236,7 @@ def manage_experiment_notebook(action: Literal["read", "add", "edit", "delete"],
 #     elif file_type == "util":
 #         return write_util(name=name,content=content,overwrite=overwrite,metadata=metadata)
 
-@server.tool(tags={"file"})
+@server.tool(tags={serverstate.file})
 def delete_pipeline_element(stage:str,name:str):
     "delete a file from the pipeline"
     
@@ -245,7 +245,7 @@ def delete_pipeline_element(stage:str,name:str):
     return "Deleted a file, you can view project info to confirm"
 
 
-@server.tool(tags={'file'})
+@server.tool(tags={serverstate.file})
 def delete_util(name:str):
     "delete a utility file"
     wd.delete_utils(name=name)
@@ -271,7 +271,36 @@ def delete_util(name:str):
 
 
 
-@server.tool(tags={"dashboard"})
+@server.tool(tags={serverstate.info})
+def register_dataset(name: str, source: str, dtype: str = None, description: str = None, metadata: dict = None):
+    """
+    Add or update a dataset in the project configuration.
+    
+    Args:
+        name: Unique name for the dataset
+        source: Path to the dataset file or a descriptive source string
+        dtype: Type of the dataset (e.g., 'csv', 'parquet', 'json')
+        description: A brief description of the dataset
+        metadata: Additional key-value pairs of metadata
+    """
+    wd.update_dataset(
+        name=name,
+        source=source,
+        dtype=dtype,
+        description=description,
+        metadata=metadata
+    )
+    return f"Successfully registered dataset: {name}"
+
+@server.tool(tags={serverstate.info})
+def delete_dataset(name: str):
+    """
+    Delete a dataset from the project configuration.
+    """
+    wd.delete_dataset(name)
+    return f"Successfully deleted dataset: {name}"
+
+@server.tool(tags={serverstate.dash})
 def create_analysis_dashboard_item(name: str,file_content: str, capture_variables: list[str]):
     """
     create a file that produces some variable containing pandas dataframe or matplotlib 

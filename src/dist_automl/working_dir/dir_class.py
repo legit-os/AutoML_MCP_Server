@@ -323,7 +323,28 @@ class WorkingDirectory:
         with self._manager:
             self._manager.delete_element(stage, name)
             self._delete_file_if_exists(relative_path)
-            
+
+    def update_dataset(
+        self,
+        name: str,
+        source: str,
+        dtype: Optional[str] = None,
+        description: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        with self._manager:
+            self._manager.update_dataset(
+                name=name,
+                source=source,
+                dtype=dtype,
+                description=description,
+                metadata=metadata,
+            )
+
+    def delete_dataset(self, name: str) -> None:
+        with self._manager:
+            self._manager.delete_dataset(name)
+
     def check_sync(self) -> list[str]:
         return self._manager.check_project_sync(self._root)
     
