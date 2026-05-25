@@ -58,12 +58,17 @@ def getcurrentProject():
     cwd = Path(os.getcwd())
     projects = [p for p in projects_config.list_projects() if p.root.as_posix() == cwd.as_posix()]
     
-    if len(projects) == 0:
-        return None
+    if len(projects) > 0:
+        projects_config.set_cwp(projects[0].name)
+        return projects[0]
     
-    projects_config.set_cwp(projects[0].name)
+    cwp_name = projects_config.get_cwp()
+    if cwp_name is not None:
+        for p in projects_config.list_projects():
+            if p.name == cwp_name:
+                return p
     
-    return projects[0]
+    return None
 
 def parse_key_value(settings: List[str]) -> Dict[str, str]:
     items = {}
