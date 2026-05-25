@@ -139,29 +139,73 @@ class WorkingDirectory:
 #-----------------------------------------------------------------
 
 
-    def manage_notebook_cell(self, action: str, index: int = None, content: str = None, cell_type: str = "code"):
+    def list_notebooks(self) -> list[dict]:
+        """Return a list of all .ipynb files under the project root (relative paths)."""
+        notebooks = []
+        for nb_path in self._root.rglob("*.ipynb"):
+            # Skip checkpoint directories
+            if ".ipynb_checkpoints" in nb_path.parts:
+                continue
+            relative = nb_path.relative_to(self._root)
+            notebooks.append({
+                "name": nb_path.stem,
+                "path": relative.as_posix(),
+            })
+        return notebooks
+
+    def manage_notebook_cell(
+        self,
+        action: str,
+        notebook: str = None,
+        index: int = None,
+        content: str = None,
+        cell_type: str = "code",
+    ):
         """
-        Unified tool for managing the experiment.ipynb notebook in project root.
-        Actions: 'read', 'add', 'edit', 'delete'
+        Manage cells in a Jupyter notebook inside the project.
+
+        Args:
+            action: 'read', 'add', 'edit', or 'delete'
+            notebook: Path to the .ipynb file relative to the project root.
+                      Defaults to 'experiment.ipynb' when None.
+            index: Cell index for targeted operations.
+            content: Cell content for 'add' / 'edit'.
+            cell_type: 'code' or 'markdown' (used by 'add').
         """
-        file_path = self._root / self.jupyter_file
-        
+        notebook_rel = notebook or self.jupyter_file
+        file_path = (self._root / notebook_rel).resolve()
+
+        # Safety: must stay inside project root
+        try:
+            file_path.relative_to(self._root)
+        except ValueError:
+            return f"Error: Notebook path must be inside the project root."
+
+        if file_path.suffix != ".ipynb":
+            return "Error: File must have a .ipynb extension."
+
+        display_name = Path(notebook_rel).as_posix()
+
         # Load or initialize the notebook
         if file_path.exists():
             with file_path.open('r', encoding='utf-8') as f:
                 nb = nbformat.read(f, as_version=4)
         elif action == 'add':
+            file_path.parent.mkdir(parents=True, exist_ok=True)
             nb = nbformat.v4.new_notebook()
         else:
-            return f"Error: File {self.jupyter_file} not found in project root."
+            return f"Error: Notebook '{display_name}' not found in project."
 
         # Perform the requested action
         if action == 'read':
             if index is not None:
                 if 0 <= index < len(nb.cells):
-                    return {"index": index, "cell": nb.cells[index]}
+                    return {"notebook": display_name, "index": index, "cell": nb.cells[index]}
                 return "Error: Invalid index."
-            return [{"index": i, "type": c.cell_type, "source": c.source} for i, c in enumerate(nb.cells)]
+            return {
+                "notebook": display_name,
+                "cells": [{"index": i, "type": c.cell_type, "source": c.source} for i, c in enumerate(nb.cells)],
+            }
 
         elif action == 'add':
             new_cell = new_code_cell(content or "") if cell_type == "code" else new_markdown_cell(content or "")
@@ -185,7 +229,7 @@ class WorkingDirectory:
         # Save and return status
         with file_path.open('w', encoding='utf-8') as f:
             nbformat.write(nb, f)
-        return f"Success: {action} operation completed on {self.jupyter_file}."
+        return f"Success: {action} operation completed on '{display_name}'."
 
 
     def update_utils(

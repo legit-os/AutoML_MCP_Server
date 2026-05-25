@@ -204,19 +204,43 @@ def write_util(name: str, content: str, overwrite : bool = False, metadata: dict
     return "Updated, you can view project info to confirm"
 
 @server.tool(tags={serverstate.file})
-def manage_experiment_notebook(action: Literal["read", "add", "edit", "delete"], 
-                               index: int = None, 
-                               content: str = None, 
-                               cell_type: Literal["code", "markdown"] = "code"):
+def manage_notebook(action: Literal["read", "add", "edit", "delete"], 
+                    notebook: str = None,
+                    index: int = None, 
+                    content: str = None, 
+                    cell_type: Literal["code", "markdown"] = "code"):
     """
-    Manage cells in the experiment.ipynb notebook located at the project root.
+    Manage cells in a Jupyter notebook inside the project.
+    
+    Args:
+        action: The operation to perform on the notebook.
+        notebook: Path to the .ipynb file relative to the project root
+                  (e.g. 'experiment.ipynb' or 'notebooks/analysis.ipynb').
+                  Defaults to 'experiment.ipynb' if not provided.
+        index: Cell index (0-based). Required for 'edit' and 'delete'.
+               Optional for 'read' (reads specific cell) and 'add' (inserts at position).
+        content: Cell source content. Required for 'add' and 'edit'.
+        cell_type: Type of cell to create when using 'add'.
+    
     Actions: 
     - read: Returns all cells or a specific cell if index is provided.
-    - add: Adds a new cell at index (or end if index is None).
+    - add: Adds a new cell at index (or end if index is None). Creates the notebook if it doesn't exist.
     - edit: Overwrites cell content at index.
     - delete: Removes cell at index.
     """
-    return wd.manage_notebook_cell(action=action, index=index, content=content, cell_type=cell_type)
+    return wd.manage_notebook_cell(action=action, notebook=notebook,
+                                   index=index, content=content, cell_type=cell_type)
+
+@server.tool(tags={serverstate.info})
+def list_notebooks():
+    """
+    List all Jupyter notebook (.ipynb) files found in the project.
+    Returns their names and relative paths so you can pass them to manage_notebook.
+    """
+    notebooks = wd.list_notebooks()
+    if not notebooks:
+        return "No .ipynb notebooks found in the project."
+    return notebooks
 
 # @server.tool()
 # def write_file(file_type:Literal["util","pipeline_element"],

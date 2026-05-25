@@ -294,6 +294,269 @@ def dataset_delete(
     
 
 
+# ── track subcommand group ──────────────────────────────────────────
+track_app = typer.Typer(
+    name="track",
+    help="Register manually-created files into the project config so they are tracked just like MCP-created files.",
+)
+app.add_typer(track_app)
+
+
+def _get_working_dir():
+    """Resolve the current project and return a WorkingDirectory, or exit with an error."""
+    pr = getcurrentProject()
+    if pr is None:
+        console.print(
+            "[error]Error:[/error] No current working project found. "
+            "Use [info]'automl set'[/info] or run from an initialised project directory.",
+            style="error",
+        )
+        raise typer.Exit(1)
+    return WorkingDirectory(pr.root)
+
+
+@track_app.command(help="Register a pipeline element (.py) that already exists on disk")
+def pipeline(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to the .py file (absolute or relative to project root, must be inside pipeline/)",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+        ),
+    ],
+    stage: Annotated[str, typer.Option("--stage", "-s", help="Pipeline stage this element belongs to (e.g. preprocessing, training)")],
+    name: Annotated[Optional[str], typer.Option("--name", "-n", help="Unique element name (defaults to file stem)")] = None,
+    depends_on: Annotated[Optional[List[str]], typer.Option("--dep", "-d", help="Dependencies in 'stage.element' or 'utils.file' format")] = None,
+    metadata: Annotated[Optional[List[str]], typer.Option("--meta", "-m", help="Key-value pairs like -m k=v")] = None,
+):
+    wd = _get_working_dir()
+    file = file.resolve()
+    element_name = name or file.stem
+
+    # Make path relative to project root
+    try:
+        relative_path = file.relative_to(wd.root)
+    except ValueError:
+        console.print(f"[error]Error:[/error] File must be inside the project root [info]{wd.root}[/info]")
+        raise typer.Exit(1)
+
+    meta = parse_key_value(metadata or [])
+
+    try:
+        with wd.manager:
+            wd.manager.update_pipeline(
+                stage=stage,
+                name=element_name,
+                path=relative_path,
+                metadata=meta or None,
+                depends_on=depends_on,
+            )
+        console.print(
+            f"[success]Tracked pipeline element:[/success] "
+            f"[highlight]{stage}.{element_name}[/highlight] → [info]{relative_path.as_posix()}[/info]"
+        )
+    except Exception as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+@track_app.command(help="Register a utility file (.py) that already exists on disk")
+def util(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to the .py file (absolute or relative to project root, must be inside utils/)",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+        ),
+    ],
+    name: Annotated[Optional[str], typer.Option("--name", "-n", help="Unique util name (defaults to file stem)")] = None,
+    metadata: Annotated[Optional[List[str]], typer.Option("--meta", "-m", help="Key-value pairs like -m k=v")] = None,
+):
+    wd = _get_working_dir()
+    file = file.resolve()
+    util_name = name or file.stem
+
+    try:
+        relative_path = file.relative_to(wd.root)
+    except ValueError:
+        console.print(f"[error]Error:[/error] File must be inside the project root [info]{wd.root}[/info]")
+        raise typer.Exit(1)
+
+    meta = parse_key_value(metadata or [])
+
+    try:
+        with wd.manager:
+            wd.manager.update_utils(
+                name=util_name,
+                path=relative_path,
+                metadata=meta or None,
+            )
+        console.print(
+            f"[success]Tracked util:[/success] [highlight]{util_name}[/highlight] → [info]{relative_path.as_posix()}[/info]"
+        )
+    except Exception as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+@track_app.command(help="Register an analysis file (.py) that already exists on disk")
+def analysis(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to the .py file (absolute or relative to project root, must be inside analysis/)",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+        ),
+    ],
+    name: Annotated[Optional[str], typer.Option("--name", "-n", help="Unique analysis name (defaults to file stem)")] = None,
+    output_type: Annotated[Optional[str], typer.Option("--type", "-t", help="Output type: table, graph, list, or float")] = None,
+    metadata: Annotated[Optional[List[str]], typer.Option("--meta", "-m", help="Key-value pairs like -m k=v")] = None,
+):
+    wd = _get_working_dir()
+    file = file.resolve()
+    analysis_name = name or file.stem
+
+    try:
+        relative_path = file.relative_to(wd.root)
+    except ValueError:
+        console.print(f"[error]Error:[/error] File must be inside the project root [info]{wd.root}[/info]")
+        raise typer.Exit(1)
+
+    meta = parse_key_value(metadata or [])
+
+    try:
+        with wd.manager:
+            wd.manager.update_analysis(
+                name=analysis_name,
+                path=relative_path,
+                output_type=output_type,
+                metadata=meta or None,
+            )
+        console.print(
+            f"[success]Tracked analysis:[/success] [highlight]{analysis_name}[/highlight] → [info]{relative_path.as_posix()}[/info]"
+        )
+    except Exception as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+@track_app.command(help="Show all files currently tracked in the project config")
+def show():
+    wd = _get_working_dir()
+    print_header()
+    cfg = wd.config
+
+    has_content = False
+
+    # ── Pipeline ──
+    stages = cfg.get("pipeline.stages", {}) or {}
+    if stages:
+        has_content = True
+        table = Table(title="Pipeline Elements", border_style="blue", header_style="bold cyan")
+        table.add_column("Stage", style="highlight")
+        table.add_column("Name", style="info")
+        table.add_column("Path", style="success")
+        table.add_column("Dependencies", style="dim")
+        table.add_column("Metadata", style="dim")
+
+        for stage_name, stage_data in stages.items():
+            elements = stage_data.get("elements", {}) or {}
+            for elem_name, elem_data in elements.items():
+                deps = ", ".join(elem_data.get("depends_on", []) or []) or "—"
+                meta = elem_data.get("metadata", {}) or {}
+                meta_str = ", ".join(f"{k}={v}" for k, v in meta.items()) if meta else "—"
+                table.add_row(stage_name, elem_name, str(elem_data.get("path", "—")), deps, meta_str)
+
+        console.print(table)
+        console.print()
+
+    # ── Utils ──
+    utils_files = cfg.get("utils.files", {}) or {}
+    if utils_files:
+        has_content = True
+        table = Table(title="Utility Files", border_style="blue", header_style="bold cyan")
+        table.add_column("Name", style="highlight")
+        table.add_column("Path", style="info")
+        table.add_column("Metadata", style="dim")
+
+        for name, data in utils_files.items():
+            meta = data.get("metadata", {}) or {}
+            meta_str = ", ".join(f"{k}={v}" for k, v in meta.items()) if meta else "—"
+            table.add_row(name, str(data.get("path", "—")), meta_str)
+
+        console.print(table)
+        console.print()
+
+    # ── Analysis ──
+    analysis_files = cfg.get("analysis.files", {}) or {}
+    if analysis_files:
+        has_content = True
+        table = Table(title="Analysis Files", border_style="blue", header_style="bold cyan")
+        table.add_column("Name", style="highlight")
+        table.add_column("Path", style="info")
+        table.add_column("Output Type", style="success")
+        table.add_column("Metadata", style="dim")
+
+        for name, data in analysis_files.items():
+            meta = data.get("metadata", {}) or {}
+            meta_str = ", ".join(f"{k}={v}" for k, v in meta.items()) if meta else "—"
+            table.add_row(name, str(data.get("path", "—")), str(data.get("output_type", "—")), meta_str)
+
+        console.print(table)
+        console.print()
+
+    # ── Datasets ──
+    dataset_files = cfg.get("datasets.files", {}) or {}
+    if dataset_files:
+        has_content = True
+        table = Table(title="Datasets", border_style="blue", header_style="bold cyan")
+        table.add_column("Name", style="highlight")
+        table.add_column("Source", style="info")
+        table.add_column("Type", style="success")
+        table.add_column("Description", style="dim")
+
+        for name, data in dataset_files.items():
+            table.add_row(
+                name,
+                str(data.get("source", "—")),
+                str(data.get("type", "—")),
+                str(data.get("description", "—")),
+            )
+
+        console.print(table)
+        console.print()
+
+    if not has_content:
+        console.print("[warning]No tracked files found in the project config.[/warning]")
+
+
+@track_app.command(help="Check if tracked config entries match actual files on disk")
+def sync():
+    wd = _get_working_dir()
+    print_header()
+
+    warnings = wd.check_sync()
+
+    if not warnings:
+        console.print("[success]✔ Everything is in sync![/success] All tracked files exist on disk.")
+    else:
+        console.print(f"[warning]Found {len(warnings)} issue(s):[/warning]\n")
+        for w in warnings:
+            console.print(f"  [error]✗[/error] {w}")
+        console.print(
+            "\n[dim]Tip: Use [bold]automl track pipeline / util / analysis[/bold] to fix missing entries, "
+            "or remove stale entries from config.yaml manually.[/dim]"
+        )
+
+
+# ── end track subcommand group ──────────────────────────────────────
+
 @app.command(help="Launch the custom React/FastAPI dashboard")
 def dashboard(
     host: str = "127.0.0.1",
