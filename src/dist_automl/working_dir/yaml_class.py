@@ -67,12 +67,24 @@ class DatasetConfig(BaseModel):
     path: Optional[Path] = None
     files: Optional[Dict[str, DatasetFile]] = Field(default_factory=dict)
 
+class OpsFile(BaseModel):
+    path: Optional[Path] = None
+    description: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+class OpsConfig(BaseModel):
+    files: Optional[Dict[str, OpsFile]] = Field(default_factory=dict)
+
+
 # -------------------------------------
 class ProjectManifest(BaseModel):
     analysis: Optional[AnalysisConfig] = None
     utils: Optional[UtilsConfig] = None
     pipeline: Optional[PipelineConfig] = None
     datasets: Optional[DatasetConfig] = None
+    ops: Optional[OpsConfig] = None
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 # ------------------------------------
@@ -432,6 +444,81 @@ class YamlManager():
             raise ValueError(f"Dataset '{name}' does not exist.")
 
         cfg.delete(dataset_key)
+
+
+    def update_metadata(self, updates: Dict[str, Any]):
+        """Set or update top-level metadata key-value pairs."""
+        cfg = self._config
+
+        if cfg.get("metadata") is None:
+            cfg.update("metadata", {})
+
+        for key, value in updates.items():
+            cfg.update(f"metadata.{key}", value)
+
+    def delete_metadata(self, key: str):
+        """Delete a single key from top-level metadata."""
+        cfg = self._config
+
+        meta_key = f"metadata.{key}"
+        if cfg.get(meta_key) is None:
+            raise ValueError(f"Metadata key '{key}' does not exist.")
+
+        cfg.delete(meta_key)
+
+    def get_metadata(self, key: str = None):
+        """Get all metadata or a specific key."""
+        cfg = self._config
+
+        if key is not None:
+            return cfg.get(f"metadata.{key}")
+        return cfg.get("metadata", {})
+
+
+    def update_ops(
+        self,
+        name: str,
+        path: Optional[Path] = None,
+        description: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        """Register or update an ops/management file in the config."""
+        cfg = self._config
+
+        if cfg.get("ops") is None:
+            cfg.update("ops", {})
+
+        if cfg.get("ops.files") is None:
+            cfg.update("ops.files", {})
+
+        base_key = f"ops.files.{name}"
+
+        if path is not None:
+            cfg.update(f"{base_key}.path", path.as_posix() if isinstance(path, Path) else path)
+
+        if description is not None:
+            cfg.update(f"{base_key}.description", description)
+
+        if metadata is not None:
+            cfg.update(f"{base_key}.metadata", metadata)
+
+    def delete_ops(self, name: str):
+        """Remove an ops file entry from the config."""
+        cfg = self._config
+
+        ops_key = f"ops.files.{name}"
+        if cfg.get(ops_key) is None:
+            raise ValueError(f"Ops file '{name}' does not exist in config.")
+
+        cfg.delete(ops_key)
+
+    def get_ops(self, name: str = None):
+        """Get all ops entries or a specific one."""
+        cfg = self._config
+
+        if name is not None:
+            return cfg.get(f"ops.files.{name}")
+        return cfg.get("ops.files", {})
 
 
     def __enter__(self):

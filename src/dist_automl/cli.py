@@ -557,6 +557,83 @@ def sync():
 
 # ── end track subcommand group ──────────────────────────────────────
 
+
+# ── meta subcommand group ───────────────────────────────────────────
+meta_app = typer.Typer(
+    name="meta",
+    help="Manage top-level project metadata stored in config.yaml.",
+)
+app.add_typer(meta_app)
+
+
+@meta_app.command(name="set", help="Set or update project metadata key-value pairs")
+def meta_set(
+    pairs: Annotated[
+        List[str],
+        typer.Argument(help="One or more key=value pairs, e.g. author=Alice version=1.0"),
+    ],
+):
+    wd = _get_working_dir()
+    updates = parse_key_value(pairs)
+
+    if not updates:
+        console.print("[error]Error:[/error] No valid key=value pairs provided.")
+        raise typer.Exit(1)
+
+    try:
+        wd.update_metadata(updates)
+        for k, v in updates.items():
+            console.print(f"  [success]✔[/success] [highlight]{k}[/highlight] = [info]{v}[/info]")
+        console.print(f"\n[success]Updated {len(updates)} metadata key(s).[/success]")
+    except Exception as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+@meta_app.command(name="get", help="Show project metadata (all keys or a specific key)")
+def meta_get(
+    key: Annotated[Optional[str], typer.Argument(help="Specific metadata key to retrieve (omit for all)")] = None,
+):
+    wd = _get_working_dir()
+    print_header()
+
+    if key is not None:
+        value = wd.get_metadata(key)
+        if value is None:
+            console.print(f"[warning]No metadata found for key:[/warning] [highlight]{key}[/highlight]")
+        else:
+            console.print(f"[highlight]{key}[/highlight] = [info]{value}[/info]")
+    else:
+        meta = wd.get_metadata() or {}
+        if not meta:
+            console.print("[warning]No project metadata has been set yet.[/warning]")
+        else:
+            table = Table(title="Project Metadata", border_style="blue", header_style="bold cyan")
+            table.add_column("Key", style="highlight")
+            table.add_column("Value", style="info")
+
+            for k, v in meta.items():
+                table.add_row(str(k), str(v))
+
+            console.print(table)
+
+
+@meta_app.command(name="delete", help="Delete a metadata key from the project config")
+def meta_delete(
+    key: Annotated[str, typer.Argument(help="The metadata key to remove")],
+):
+    wd = _get_working_dir()
+
+    try:
+        wd.delete_metadata(key)
+        console.print(f"[success]Deleted metadata key:[/success] [highlight]{key}[/highlight]")
+    except ValueError as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+# ── end meta subcommand group ───────────────────────────────────────
+
 @app.command(help="Launch the custom React/FastAPI dashboard")
 def dashboard(
     host: str = "127.0.0.1",

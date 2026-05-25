@@ -84,6 +84,42 @@ def get_current_project_info():
     
     
 
+@server.tool(tags=serverstate.state_options)
+def manage_plan(action: Literal["read", "rewrite", "append"], content: str = None):
+    """
+    Manage the agentplan.md planning file in the project root.
+    Use this to plan your approach before making changes, then present 
+    it to the user for review and approval.
+    
+    Args:
+        action: The operation to perform.
+        content: Markdown content for 'rewrite' or 'append' actions.
+    
+    Actions:
+    - read: Returns the current contents of agentplan.md (or a message if it doesn't exist).
+    - rewrite: Creates or overwrites agentplan.md with the provided content.
+    - append: Appends the provided content to the end of agentplan.md (creates it if needed).
+    """
+    plan_path = cwp_path / "agentplan.md"
+    
+    if action == "read":
+        if not plan_path.exists():
+            return "No agentplan.md file exists yet. Use 'rewrite' or 'append' to create one."
+        return plan_path.read_text(encoding="utf-8")
+    
+    if content is None:
+        return "Error: 'content' is required for 'rewrite' and 'append' actions."
+    
+    if action == "rewrite":
+        plan_path.write_text(content, encoding="utf-8")
+        return "Successfully created/updated agentplan.md"
+    
+    elif action == "append":
+        existing = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
+        separator = "\n\n" if existing and not existing.endswith("\n") else ("\n" if existing else "")
+        plan_path.write_text(existing + separator + content, encoding="utf-8")
+        return "Successfully appended to agentplan.md"
+
 # @server.tool(tags={serverstate.info})
 # def run_file(file_path: str, timeout: float, arguments: list[str] = None):
 #     """Run a file you created, assuming that the file captures arguments provided 
@@ -117,14 +153,8 @@ def get_current_project_info():
 #     except Exception as e:
 #         return f"Error: An unexpected error occurred: {str(e)}"
 
-@server.tool(tags={serverstate.info})
-def read_or_ls_dir(path: str):
-    """
-    Read a file or list directory contents from the project.
-    'path' can be:
-    1. A path relative to project root (e.g., 'pipeline', 'utils/helper.py', '.')
-    2. A registered name in format 'stage.element' (e.g., 'preprocessing.scaler')
-    """
+def _resolve_path(path: str) -> Path:
+    """Resolve a path string to an absolute path, checking config names as fallback."""
     abs_path = cwp_path / path
     
     if not abs_path.exists() and "." in path:
@@ -140,27 +170,121 @@ def read_or_ls_dir(path: str):
             
         if file_info and "path" in file_info:
             abs_path = cwp_path / file_info["path"]
+    
+    return abs_path
 
+
+@server.tool(tags={serverstate.info})
+def read_file(path: str, start_line: int = None, end_line: int = None):
+    """
+    Read a file from the project with optional line range.
+    
+    Args:
+        path: Path to the file. Can be:
+              - Relative to project root (e.g. 'pipeline/scaler.py', 'Dockerfile')
+              - A registered name like 'stage.element' (e.g. 'preprocessing.scaler')
+                or 'utils.helper'
+        start_line: First line to return (1-indexed, inclusive). Omit to start from beginning.
+        end_line: Last line to return (1-indexed, inclusive). Omit to read until end.
+    
+    Returns the file content with line numbers prefixed (e.g. '  1: import os').
+    When start_line/end_line are provided, only the requested range is returned.
+    """
+    abs_path = _resolve_path(path)
+    
     if not abs_path.exists():
-        return f"Error: Path '{path}' does not exist relative to project root or as a registered element."
-
-    if abs_path.is_file():
-        try:
-            return abs_path.read_text(encoding="utf-8")
-        except Exception as e:
-            return f"Error reading file: {str(e)}"
-    elif abs_path.is_dir():
-        try:
-            items = []
-            for item in abs_path.iterdir():
-                type_str = "[DIR] " if item.is_dir() else "[FILE]"
-                items.append(f"{type_str} {item.name}")
-            return "\n".join(sorted(items)) if items else "Directory is empty."
-        except Exception as e:
-            return f"Error listing directory: {str(e)}"
-    else:
-        return f"Error: '{path}' is neither a file nor a directory."
+        return f"Error: '{path}' does not exist relative to project root or as a registered element."
+    
+    if not abs_path.is_file():
+        return f"Error: '{path}' is not a file. Use ls_dir to list directory contents."
+    
+    try:
+        lines = abs_path.read_text(encoding="utf-8").splitlines()
+        total = len(lines)
         
+        # Default to full file
+        start = 1
+        end = total
+        
+        if start_line is not None:
+            start = max(1, start_line)
+        if end_line is not None:
+            end = min(total, end_line)
+        
+        if start > total:
+            return f"Error: start_line {start} exceeds total lines ({total})."
+        if start > end:
+            return f"Error: start_line ({start}) is greater than end_line ({end})."
+        
+        # Build line-numbered output
+        width = len(str(end))
+        selected = lines[start - 1 : end]
+        numbered = [f"{str(i).rjust(width)}: {line}" for i, line in enumerate(selected, start=start)]
+        
+        header = f"File: {path} | Lines {start}-{end} of {total}"
+        return header + "\n" + "\n".join(numbered)
+    
+    except Exception as e:
+        return f"Error reading file: {str(e)}"
+
+
+@server.tool(tags={serverstate.info})
+def ls_dir(path: str = ".", depth: int = 1):
+    """
+    List directory contents from the project with controllable depth.
+    
+    Args:
+        path: Directory path relative to project root. Defaults to '.' (project root).
+        depth: How many levels deep to list (1 = immediate children, 2 = children + grandchildren, etc.).
+               Use -1 for unlimited depth.
+    
+    Output format shows type, relative path, and indentation by level:
+      [DIR]  pipeline/
+      [FILE] pipeline/scaler.py
+    """
+    abs_path = cwp_path / path
+    
+    if not abs_path.exists():
+        return f"Error: Directory '{path}' does not exist."
+    
+    if not abs_path.is_dir():
+        return f"Error: '{path}' is not a directory. Use read_file to read files."
+    
+    try:
+        items = []
+        _ls_recursive(abs_path, abs_path, depth, 0, items)
+        return "\n".join(items) if items else "Directory is empty."
+    except Exception as e:
+        return f"Error listing directory: {str(e)}"
+
+
+def _ls_recursive(base: Path, current: Path, max_depth: int, current_depth: int, result: list):
+    """Recursively list directory contents up to max_depth."""
+    if max_depth != -1 and current_depth >= max_depth:
+        return
+    
+    try:
+        entries = sorted(current.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+    except PermissionError:
+        return
+    
+    indent = "  " * current_depth
+    
+    for entry in entries:
+        # Skip hidden/system directories
+        if entry.name.startswith(".") and entry.is_dir():
+            continue
+        if entry.name == "__pycache__":
+            continue
+            
+        relative = entry.relative_to(base)
+        
+        if entry.is_dir():
+            result.append(f"{indent}[DIR]  {relative.as_posix()}/")
+            _ls_recursive(base, entry, max_depth, current_depth + 1, result)
+        else:
+            result.append(f"{indent}[FILE] {relative.as_posix()}")
+
 
 # @server.tool()
 # def how_to_use_guide():
@@ -333,6 +457,104 @@ def delete_dataset(name: str):
     """
     wd.delete_dataset(name)
     return f"Successfully deleted dataset: {name}"
+
+@server.tool(tags={serverstate.info})
+def update_project_metadata(updates: dict):
+    """
+    Set or update top-level project metadata key-value pairs in the config.
+    
+    Args:
+        updates: A dictionary of key-value pairs to set or update.
+                 Values can be strings, numbers, booleans, lists, or dicts.
+    
+    Example: {"author": "Alice", "version": "1.0", "description": "My ML project"}
+    """
+    wd.update_metadata(updates)
+    return f"Successfully updated project metadata: {list(updates.keys())}"
+
+@server.tool(tags={serverstate.info})
+def get_project_metadata(key: str = None):
+    """
+    Get project-level metadata from the config.
+    
+    Args:
+        key: Optional specific key to retrieve. Returns all metadata if not provided.
+    """
+    result = wd.get_metadata(key)
+    if result is None and key is not None:
+        return f"No metadata found for key: '{key}'"
+    if not result:
+        return "No project metadata has been set yet."
+    return result
+
+@server.tool(tags={serverstate.info})
+def delete_project_metadata(key: str):
+    """
+    Delete a specific key from the project-level metadata.
+    
+    Args:
+        key: The metadata key to remove.
+    """
+    wd.delete_metadata(key)
+    return f"Successfully deleted metadata key: '{key}'"
+
+@server.tool(tags={serverstate.file})
+def manage_ops_file(
+    action: Literal["write", "append", "read"],
+    file_path: str,
+    content: str = None,
+    track: bool = False,
+    name: str = None,
+    description: str = None,
+    metadata: dict = None,
+):
+    """
+    Manage ops/infrastructure files like Dockerfiles, DVC configs, CI/CD pipelines,
+    docker-compose files, Makefiles, shell scripts, etc.
+    
+    These files live anywhere in the project and can optionally be tracked in the
+    config under the 'ops' section.
+    
+    Args:
+        action: The operation to perform.
+        file_path: Path relative to project root (e.g. 'Dockerfile', 'docker-compose.yml', '.dvc/config').
+        content: File content for 'write' and 'append' actions.
+        track: If True, registers the file in the config 'ops' section (only used with 'write').
+        name: Tracking name in config (defaults to file stem). Only used when track=True.
+        description: Brief description of the file. Only used when track=True.
+        metadata: Extra key-value metadata. Only used when track=True.
+    
+    Actions:
+    - write: Creates or overwrites the file with the provided content.
+    - append: Appends content to an existing file.
+    - read: Returns the file contents.
+    """
+    try:
+        if action == "write":
+            if content is None:
+                return "Error: 'content' is required for 'write' action."
+            result_path = wd.write_ops_file(
+                file_path=file_path,
+                content=content,
+                name=name,
+                description=description,
+                metadata=metadata,
+                track=track,
+            )
+            tracked_msg = " and tracked in config" if track else ""
+            return f"Successfully created '{result_path}'{tracked_msg}."
+        
+        elif action == "append":
+            if content is None:
+                return "Error: 'content' is required for 'append' action."
+            wd.append_ops_file(file_path=file_path, content=content)
+            return f"Successfully appended to '{file_path}'."
+        
+        elif action == "read":
+            return wd.read_ops_file(file_path=file_path)
+    
+    except (ValueError, FileNotFoundError) as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.dash})
 def create_analysis_dashboard_item(name: str,file_content: str, capture_variables: list[str]):

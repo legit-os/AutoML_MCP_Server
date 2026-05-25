@@ -389,6 +389,109 @@ class WorkingDirectory:
         with self._manager:
             self._manager.delete_dataset(name)
 
+    def update_metadata(self, updates: dict) -> None:
+        """Set or update top-level project metadata key-value pairs."""
+        with self._manager:
+            self._manager.update_metadata(updates)
+
+    def delete_metadata(self, key: str) -> None:
+        """Delete a single key from project metadata."""
+        with self._manager:
+            self._manager.delete_metadata(key)
+
+    def get_metadata(self, key: str = None):
+        """Get all project metadata or a specific key."""
+        return self._manager.get_metadata(key)
+
+    def write_ops_file(
+        self,
+        file_path: str,
+        content: str,
+        name: str = None,
+        description: str = None,
+        metadata: Optional[dict] = None,
+        track: bool = False,
+    ) -> str:
+        """Create or overwrite an ops/management file and optionally track it in config."""
+        rel_path = Path(file_path)
+        abs_path = (self._root / rel_path).resolve()
+
+        # Safety check
+        try:
+            abs_path.relative_to(self._root)
+        except ValueError:
+            raise ValueError("File path must be inside the project root.")
+
+        abs_path.parent.mkdir(parents=True, exist_ok=True)
+        abs_path.write_text(content, encoding="utf-8")
+
+        if track:
+            ops_name = name or rel_path.stem
+            with self._manager:
+                self._manager.update_ops(
+                    name=ops_name,
+                    path=rel_path,
+                    description=description,
+                    metadata=metadata,
+                )
+
+        return rel_path.as_posix()
+
+    def append_ops_file(self, file_path: str, content: str) -> None:
+        """Append content to an existing ops/management file."""
+        abs_path = (self._root / file_path).resolve()
+
+        try:
+            abs_path.relative_to(self._root)
+        except ValueError:
+            raise ValueError("File path must be inside the project root.")
+
+        if not abs_path.exists():
+            raise FileNotFoundError(f"File '{file_path}' does not exist. Use 'write' to create it first.")
+
+        existing = abs_path.read_text(encoding="utf-8")
+        separator = "\n\n" if existing and not existing.endswith("\n") else ("\n" if existing else "")
+        abs_path.write_text(existing + separator + content, encoding="utf-8")
+
+    def read_ops_file(self, file_path: str) -> str:
+        """Read an ops/management file."""
+        abs_path = (self._root / file_path).resolve()
+
+        try:
+            abs_path.relative_to(self._root)
+        except ValueError:
+            raise ValueError("File path must be inside the project root.")
+
+        if not abs_path.exists():
+            raise FileNotFoundError(f"File '{file_path}' does not exist.")
+
+        return abs_path.read_text(encoding="utf-8")
+
+    def update_ops_tracking(
+        self,
+        name: str,
+        path: str,
+        description: str = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """Register an ops file in config without writing content."""
+        with self._manager:
+            self._manager.update_ops(
+                name=name,
+                path=Path(path),
+                description=description,
+                metadata=metadata,
+            )
+
+    def delete_ops(self, name: str) -> None:
+        """Remove an ops file entry from config."""
+        with self._manager:
+            self._manager.delete_ops(name)
+
+    def get_ops(self, name: str = None):
+        """Get all tracked ops files or a specific one."""
+        return self._manager.get_ops(name)
+
     def check_sync(self) -> list[str]:
         return self._manager.check_project_sync(self._root)
     
