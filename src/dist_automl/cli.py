@@ -451,6 +451,88 @@ def analysis(
         raise typer.Exit(1)
 
 
+@track_app.command(name="delete-pipeline", help="Remove a pipeline element from config (and optionally from disk)")
+def delete_pipeline(
+    stage: Annotated[str, typer.Argument(help="Pipeline stage the element belongs to")],
+    name: Annotated[str, typer.Argument(help="Name of the pipeline element to delete")],
+    keep_file: Annotated[bool, typer.Option("--keep-file", "-k", help="Keep the file on disk, only remove from config")] = False,
+):
+    wd = _get_working_dir()
+
+    try:
+        if keep_file:
+            # Only remove from config, don't delete the file
+            with wd.manager:
+                wd.manager.delete_element(stage, name)
+        else:
+            wd.delete_pipeline_element(stage=stage, name=name)
+        console.print(
+            f"[success]Deleted pipeline element:[/success] [highlight]{stage}.{name}[/highlight]"
+            + (" [dim](file kept on disk)[/dim]" if keep_file else "")
+        )
+    except (KeyError, ValueError) as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+@track_app.command(name="delete-util", help="Remove a utility file from config (and optionally from disk)")
+def delete_util(
+    name: Annotated[str, typer.Argument(help="Name of the utility to delete")],
+    keep_file: Annotated[bool, typer.Option("--keep-file", "-k", help="Keep the file on disk, only remove from config")] = False,
+):
+    wd = _get_working_dir()
+
+    try:
+        if keep_file:
+            with wd.manager:
+                wd.manager.delete_utils(name)
+        else:
+            wd.delete_utils(name=name)
+        console.print(
+            f"[success]Deleted util:[/success] [highlight]{name}[/highlight]"
+            + (" [dim](file kept on disk)[/dim]" if keep_file else "")
+        )
+    except (KeyError, ValueError) as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+@track_app.command(name="delete-analysis", help="Remove an analysis file from config (and optionally from disk)")
+def delete_analysis(
+    name: Annotated[str, typer.Argument(help="Name of the analysis entry to delete")],
+    keep_file: Annotated[bool, typer.Option("--keep-file", "-k", help="Keep the file on disk, only remove from config")] = False,
+):
+    wd = _get_working_dir()
+
+    try:
+        if keep_file:
+            with wd.manager:
+                wd.manager.delete_analysis(name)
+        else:
+            wd.delete_analysis(name=name)
+        console.print(
+            f"[success]Deleted analysis:[/success] [highlight]{name}[/highlight]"
+            + (" [dim](file kept on disk)[/dim]" if keep_file else "")
+        )
+    except (KeyError, ValueError) as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
+@track_app.command(name="delete-ops", help="Remove an ops file entry from config")
+def delete_ops_entry(
+    name: Annotated[str, typer.Argument(help="Name of the ops entry to delete from config")],
+):
+    wd = _get_working_dir()
+
+    try:
+        wd.delete_ops(name=name)
+        console.print(f"[success]Deleted ops entry:[/success] [highlight]{name}[/highlight]")
+    except (KeyError, ValueError) as e:
+        console.print(f"[error]Error:[/error] {e}")
+        raise typer.Exit(1)
+
+
 @track_app.command(help="Show all files currently tracked in the project config")
 def show():
     wd = _get_working_dir()
