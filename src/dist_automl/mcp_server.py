@@ -556,6 +556,17 @@ def manage_ops_file(
     except (ValueError, FileNotFoundError) as e:
         return f"Error: {e}"
 
+@server.tool(tags={serverstate.file})
+def delete_analysis(name: str):
+    """
+    Delete an analysis file from the project (removes from config and disk).
+    
+    Args:
+        name: Name of the analysis entry to delete.
+    """
+    wd.delete_analysis(name=name)
+    return f"Deleted analysis file: {name}"
+
 @server.tool(tags={serverstate.dash})
 def create_analysis_dashboard_item(name: str,file_content: str, capture_variables: list[str]):
     """
