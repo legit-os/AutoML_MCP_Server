@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Optional
 import nbformat
@@ -315,9 +316,45 @@ class WorkingDirectory:
 
         relative_path = Path(entry["path"])
 
+        # Clean up dashboard artifacts created from this analysis script
+        self._cleanup_dashboard_artifacts(relative_path)
+
         with self._manager:
             self._manager.delete_analysis(name)
             self._delete_file_if_exists(relative_path)
+
+    def _cleanup_dashboard_artifacts(self, relative_script_path: Path) -> None:
+        """Remove dashboard data/images and metadata.json entry for a given analysis script."""
+        dashboard_dir = self._root / "dashboard_runs"
+        meta_file = dashboard_dir / "metadata.json"
+
+        if not meta_file.exists():
+            return
+
+        try:
+            metadata = json.loads(meta_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+
+        scripts = metadata.get("scripts", {})
+
+        # The capture module uses str(absolute_script_path) as the key
+        abs_script_path = str(self._absolute(relative_script_path))
+
+        if abs_script_path not in scripts:
+            return
+
+        # Delete each referenced data/image file
+        for var_name, var_info in scripts[abs_script_path].items():
+            artifact_path = var_info.get("path")
+            if artifact_path:
+                full_path = dashboard_dir / artifact_path
+                if full_path.exists():
+                    full_path.unlink()
+
+        # Remove the script entry from metadata
+        del scripts[abs_script_path]
+        meta_file.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
             
             
 #----------------------------------------------------------------
