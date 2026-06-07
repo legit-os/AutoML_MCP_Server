@@ -1,5 +1,4 @@
 from pathlib import Path
-import subprocess
 import sys
 from typing import Literal
 
@@ -41,7 +40,7 @@ class ServerState():
 
 serverstate = ServerState()
 
-@server.tool(tags=serverstate.state_options)
+@server.tool(tags=serverstate.state_changer)
 def change_tool_list(state: Literal["info_and_file_reading","file_writing","analysis_and_dashboard"]):
     """
     Use this tool to access other tools that the server provides:
@@ -70,19 +69,15 @@ def get_current_project_info():
     """
     Get the Projects info that is stored in the config file of the Project
     """
-    
-    info = {}
-    
-    info["system"] = sys.platform
-    
-    info["project_root"] = wd.root.__str__()
-    
-    
-    info["config"] = (wd._config_path).read_text()
-    
-    return info
-    
-    
+    try:
+        info = {}
+        info["system"] = sys.platform
+        info["project_root"] = wd.root.__str__()
+        info["config"] = (wd._config_path).read_text()
+        return info
+    except Exception as e:
+        return f"Error: {e}"
+
 
 @server.tool(tags=serverstate.state_options)
 def manage_plan(action: Literal["read", "rewrite", "append"], content: str = None):
@@ -100,58 +95,28 @@ def manage_plan(action: Literal["read", "rewrite", "append"], content: str = Non
     - rewrite: Creates or overwrites agentplan.md with the provided content.
     - append: Appends the provided content to the end of agentplan.md (creates it if needed).
     """
-    plan_path = cwp_path / "agentplan.md"
-    
-    if action == "read":
-        if not plan_path.exists():
-            return "No agentplan.md file exists yet. Use 'rewrite' or 'append' to create one."
-        return plan_path.read_text(encoding="utf-8")
-    
-    if content is None:
-        return "Error: 'content' is required for 'rewrite' and 'append' actions."
-    
-    if action == "rewrite":
-        plan_path.write_text(content, encoding="utf-8")
-        return "Successfully created/updated agentplan.md"
-    
-    elif action == "append":
-        existing = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
-        separator = "\n\n" if existing and not existing.endswith("\n") else ("\n" if existing else "")
-        plan_path.write_text(existing + separator + content, encoding="utf-8")
-        return "Successfully appended to agentplan.md"
-
-# @server.tool(tags={serverstate.info})
-# def run_file(file_path: str, timeout: float, arguments: list[str] = None):
-#     """Run a file you created, assuming that the file captures arguments provided 
-#     from command line, you can provide arguments that your file requires.
-#     File Path should be provided relative to project like 'pipeline/scaler.py'.
-#     Timeout must be provided so that system doesn't break if python files have bugs
-#     """
-#     cmd = ["uv", "run", file_path]
-#     if arguments:
-#         cmd.extend(arguments)
-    
-#     try:
-#         out = subprocess.run(
-#             cmd,
-#             timeout=timeout,
-#             cwd=cwp_path,
-#             capture_output=True,
-#             text=True
-#         )
+    try:
+        plan_path = cwp_path / "agentplan.md"
         
-#         status = "Success" if out.returncode == 0 else "Failure"
-#         result = f"--- Execution {status} (Return Code: {out.returncode}) ---\n"
-#         if out.stdout:
-#             result += f"\nSTDOUT:\n{out.stdout}"
-#         if out.stderr:
-#             result += f"\nSTDERR:\n{out.stderr}"
-#         return result
+        if action == "read":
+            if not plan_path.exists():
+                return "No agentplan.md file exists yet. Use 'rewrite' or 'append' to create one."
+            return plan_path.read_text(encoding="utf-8")
         
-#     except subprocess.TimeoutExpired:
-#         return f"Error: Execution timed out after {timeout} seconds."
-#     except Exception as e:
-#         return f"Error: An unexpected error occurred: {str(e)}"
+        if content is None:
+            return "Error: 'content' is required for 'rewrite' and 'append' actions."
+        
+        if action == "rewrite":
+            plan_path.write_text(content, encoding="utf-8")
+            return "Successfully created/updated agentplan.md"
+        
+        elif action == "append":
+            existing = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
+            separator = "\n\n" if existing and not existing.endswith("\n") else ("\n" if existing else "")
+            plan_path.write_text(existing + separator + content, encoding="utf-8")
+            return "Successfully appended to agentplan.md"
+    except Exception as e:
+        return f"Error: {e}"
 
 def _resolve_path(path: str) -> Path:
     """Resolve a path string to an absolute path, checking config names as fallback."""
@@ -286,16 +251,6 @@ def _ls_recursive(base: Path, current: Path, max_depth: int, current_depth: int,
             result.append(f"{indent}[FILE] {relative.as_posix()}")
 
 
-# @server.tool()
-# def how_to_use_guide():
-#     return """
-    
-
-# """
-
-
-
-
 @server.tool(tags={serverstate.file})
 def write_pipeline_element(stage: str, name: str, content: str,
                            depends_on:list[str] = None,
@@ -310,22 +265,25 @@ def write_pipeline_element(stage: str, name: str, content: str,
         name: name of the this process in the pipeline (must be unique)
         depends_on: accepts strings like 'utils.helper' or 'preprocessing.col_mixer' assuming that the names provided exist and are in the config file
     '''
-    
-    wd.update_pipeline_element(stage=stage,name=name,content=content,
-                               path=Path(f"pipeline/{name}.py"),
-                               depends_on=depends_on,
-                               metadata=metadata,
-                               overwrite=overwrite)
-    return "Updated config file, you can view project info to confirm"
+    try:
+        wd.update_pipeline_element(stage=stage,name=name,content=content,
+                                   path=Path(f"pipeline/{name}.py"),
+                                   depends_on=depends_on,
+                                   metadata=metadata,
+                                   overwrite=overwrite)
+        return "Updated config file, you can view project info to confirm"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
 def write_util(name: str, content: str, overwrite : bool = False, metadata: dict = None):
     "Write helper files for the pipeline"
-    
-    wd.update_utils(name=name, path=Path(f"utils/{name}.py"),
-                    metadata=metadata, content=content,overwrite=overwrite)
-    
-    return "Updated, you can view project info to confirm"
+    try:
+        wd.update_utils(name=name, path=Path(f"utils/{name}.py"),
+                        metadata=metadata, content=content,overwrite=overwrite)
+        return "Updated, you can view project info to confirm"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
 def manage_notebook(action: Literal["read", "add", "edit", "delete"], 
@@ -361,73 +319,31 @@ def list_notebooks():
     List all Jupyter notebook (.ipynb) files found in the project.
     Returns their names and relative paths so you can pass them to manage_notebook.
     """
-    notebooks = wd.list_notebooks()
-    if not notebooks:
-        return "No .ipynb notebooks found in the project."
-    return notebooks
-
-# @server.tool()
-# def write_file(file_type:Literal["util","pipeline_element"],
-#                name: str,
-#                content: str,
-#                stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"],
-#                depends_on: list[str] = None,
-#                overwrite: bool = False,
-#                metadata: dict = None):
-#     """Write a utility or pipeline file.
-#     Args: 
-#         file_type: util or pipeline_element 
-#         name: without extention name of the file
-#         content: code to write in the file
-#         stage: only required for the pipeline element
-#         depends_on: stage.name or util.name (for only those files that already exists in the config file)
-#         metadata: a dictionary of extra data assumed str to (str or int) mapping
-#         """
-#     if file_type == "pipeline_element":
-#         if stage == "utils":
-#             raise ValueError("Utils name of stage should be given on")
-#         return write_pipeline_element(stage=stage,name=name,
-#                                       content=content,
-#                                       overwrite=overwrite,
-#                                       depends_on=depends_on,
-#                                       metadata=metadata)
-#     elif file_type == "util":
-#         return write_util(name=name,content=content,overwrite=overwrite,metadata=metadata)
+    try:
+        notebooks = wd.list_notebooks()
+        if not notebooks:
+            return "No .ipynb notebooks found in the project."
+        return notebooks
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
 def delete_pipeline_element(stage:str,name:str):
     "delete a file from the pipeline"
-    
-    wd.delete_pipeline_element(stage=stage, name=name)
-
-    return "Deleted a file, you can view project info to confirm"
-
+    try:
+        wd.delete_pipeline_element(stage=stage, name=name)
+        return "Deleted a file, you can view project info to confirm"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
 def delete_util(name:str):
     "delete a utility file"
-    wd.delete_utils(name=name)
-    
-    return "Deleted utility file, you can view project info to confirm"
-
-# @server.tool()
-# def delete_file(file_type : Literal["util","pipeline_element"],name: str,
-#                 stage:Literal["utils","splitting","preprocessing","scaling","training","evalutaion","serving"]):
-#     """
-#     delete a utility or pipeline element
-#     Args: 
-#         file_type: required as given in definition
-#         name: without extention name of the file
-#         stage: required only for the pipeline element else should be given as utils
-#     """
-    
-    
-#     if file_type == "pipeline_element":
-#         delete_pipeline_element(stage,name)
-#     elif file_type == "util":
-#         delete_util(name)
-
-
+    try:
+        wd.delete_utils(name=name)
+        return "Deleted utility file, you can view project info to confirm"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
 def register_dataset(name: str, source: str, dtype: str = None, description: str = None, metadata: dict = None):
@@ -441,22 +357,28 @@ def register_dataset(name: str, source: str, dtype: str = None, description: str
         description: A brief description of the dataset
         metadata: Additional key-value pairs of metadata
     """
-    wd.update_dataset(
-        name=name,
-        source=source,
-        dtype=dtype,
-        description=description,
-        metadata=metadata
-    )
-    return f"Successfully registered dataset: {name}"
+    try:
+        wd.update_dataset(
+            name=name,
+            source=source,
+            dtype=dtype,
+            description=description,
+            metadata=metadata
+        )
+        return f"Successfully registered dataset: {name}"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
 def delete_dataset(name: str):
     """
     Delete a dataset from the project configuration.
     """
-    wd.delete_dataset(name)
-    return f"Successfully deleted dataset: {name}"
+    try:
+        wd.delete_dataset(name)
+        return f"Successfully deleted dataset: {name}"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
 def update_project_metadata(updates: dict):
@@ -469,8 +391,11 @@ def update_project_metadata(updates: dict):
     
     Example: {"author": "Alice", "version": "1.0", "description": "My ML project"}
     """
-    wd.update_metadata(updates)
-    return f"Successfully updated project metadata: {list(updates.keys())}"
+    try:
+        wd.update_metadata(updates)
+        return f"Successfully updated project metadata: {list(updates.keys())}"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
 def get_project_metadata(key: str = None):
@@ -480,12 +405,15 @@ def get_project_metadata(key: str = None):
     Args:
         key: Optional specific key to retrieve. Returns all metadata if not provided.
     """
-    result = wd.get_metadata(key)
-    if result is None and key is not None:
-        return f"No metadata found for key: '{key}'"
-    if not result:
-        return "No project metadata has been set yet."
-    return result
+    try:
+        result = wd.get_metadata(key)
+        if result is None and key is not None:
+            return f"No metadata found for key: '{key}'"
+        if not result:
+            return "No project metadata has been set yet."
+        return result
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
 def delete_project_metadata(key: str):
@@ -495,8 +423,11 @@ def delete_project_metadata(key: str):
     Args:
         key: The metadata key to remove.
     """
-    wd.delete_metadata(key)
-    return f"Successfully deleted metadata key: '{key}'"
+    try:
+        wd.delete_metadata(key)
+        return f"Successfully deleted metadata key: '{key}'"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
 def manage_ops_file(
@@ -553,7 +484,7 @@ def manage_ops_file(
         elif action == "read":
             return wd.read_ops_file(file_path=file_path)
     
-    except (ValueError, FileNotFoundError) as e:
+    except Exception as e:
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
@@ -564,8 +495,11 @@ def delete_analysis(name: str):
     Args:
         name: Name of the analysis entry to delete.
     """
-    wd.delete_analysis(name=name)
-    return f"Deleted analysis file: {name}"
+    try:
+        wd.delete_analysis(name=name)
+        return f"Deleted analysis file: {name}"
+    except Exception as e:
+        return f"Error: {e}"
 
 @server.tool(tags={serverstate.dash})
 def create_analysis_dashboard_item(name: str,file_content: str, capture_variables: list[str]):
@@ -574,19 +508,153 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
     figure objects or list or dictionaries that will show on the dashboard.
     It only reads the variables from the file that are given in 'capture_variables' argument.
     """
-    
-    script_path = cwp_path / "analysis" / f"{name}.py"
-    
-    wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata={}, content=file_content)
-    captured = capture_script_outputs(project_root=cwp_path, script_path=script_path, variables=capture_variables)
-    wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata=captured, content=file_content)
-    return "captured provided variables and added to dashboard"
-    
-    
-    
-    
+    try:
+        script_path = cwp_path / "analysis" / f"{name}.py"
+        
+        wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata={}, content=file_content)
+        captured = capture_script_outputs(project_root=cwp_path, script_path=script_path, variables=capture_variables)
+        wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata=captured, content=file_content)
+        return "captured provided variables and added to dashboard"
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@server.tool(tags={serverstate.dash})
+def read_dashboard_items(
+    action: Literal["list", "read"],
+    script_name: str = None,
+    variable: str = None,
+    max_rows: int = 50,
+):
+    """
+    List or read dashboard items that were created by create_analysis_dashboard_item.
+
+    Args:
+        action: 'list' to see all items, 'read' to fetch a specific item's data.
+        script_name: Analysis script name (stem only, e.g. 'eda' not 'eda.py').
+                     Optional for 'list' (filters by script). Required for 'read'.
+        variable: Variable name to read. Required for 'read'.
+        max_rows: For dataframes, limit the number of rows returned (default 50).
+
+    Actions:
+    - list: Returns all dashboard items grouped by script, showing variable name,
+            type, and file path for each. If script_name is given, lists only
+            items from that script.
+    - read: Returns the stored data for a specific variable. Works for dataframes,
+            lists, dicts, and kpi numbers. For figures (images), returns the file
+            path instead of content since images cannot be returned as text.
+    """
+    import json as _json
+
+    dashboard_dir = cwp_path / "dashboard_runs"
+    meta_file = dashboard_dir / "metadata.json"
+
+    if not meta_file.exists():
+        return "No dashboard data exists yet. Use create_analysis_dashboard_item to create items first."
+
+    try:
+        metadata = _json.loads(meta_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        return f"Error reading dashboard metadata: {e}"
+
+    scripts = metadata.get("scripts", {})
+    if not scripts:
+        return "Dashboard metadata exists but contains no items."
+
+    # --- LIST ---
+    if action == "list":
+        result = {}
+        for script_key, variables in scripts.items():
+            stem = Path(script_key).stem
+            if script_name is not None and stem != script_name:
+                continue
+            items = []
+            for var_name, var_info in variables.items():
+                items.append({
+                    "variable": var_name,
+                    "type": var_info.get("type", "unknown"),
+                    "path": var_info.get("path", ""),
+                })
+            result[stem] = items
+
+        if not result:
+            if script_name:
+                return f"No dashboard items found for script '{script_name}'."
+            return "No dashboard items found."
+
+        return {"dashboard_items": result}
+
+    # --- READ ---
+    if action == "read":
+        if not script_name or not variable:
+            return "Error: 'script_name' and 'variable' are required for 'read' action."
+
+        # Find the matching script key (compare by stem)
+        target_key = None
+        for script_key in scripts:
+            if Path(script_key).stem == script_name:
+                target_key = script_key
+                break
+
+        if target_key is None:
+            available = [Path(k).stem for k in scripts]
+            return f"Error: Script '{script_name}' not found. Available scripts: {available}"
+
+        var_info = scripts[target_key].get(variable)
+        if var_info is None:
+            available = list(scripts[target_key].keys())
+            return f"Error: Variable '{variable}' not found in script '{script_name}'. Available: {available}"
+
+        var_type = var_info.get("type", "unknown")
+        rel_path = var_info.get("path", "")
+
+        if var_type == "figure":
+            abs_path = dashboard_dir / rel_path
+            return {
+                "script": script_name,
+                "variable": variable,
+                "type": "figure",
+                "note": "Image content is not returned, if your image has some plot try reading the data instead.",
+                "file_path": str(abs_path),
+            }
+
+        data_path = dashboard_dir / rel_path
+        if not data_path.exists():
+            return f"Error: Data file not found at '{rel_path}'."
+
+        try:
+            data = _json.loads(data_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            return f"Error reading data file: {e}"
+
+        # For dataframes, truncate rows if needed
+        if var_type == "dataframe" and isinstance(data, dict) and "rows" in data:
+            total_rows = len(data["rows"])
+            if total_rows > max_rows:
+                data["rows"] = data["rows"][:max_rows]
+                data["truncated"] = True
+                data["total_rows"] = total_rows
+                data["showing_rows"] = max_rows
+
+        return {
+            "script": script_name,
+            "variable": variable,
+            "type": var_type,
+            "data": data,
+        }
+
+    return f"Error: Unknown action '{action}'. Use 'list' or 'read'."
+
+
 # server.enable(tags={serverstate.info},only=True)
 server.disable(names={serverstate.state_changer})
 
+MCP_HOST = "127.0.0.1"
+MCP_PORT = 9000
+
 if __name__ == "__main__":
-    server.run()
+    server.run(
+        transport="streamable-http",
+        host=MCP_HOST,
+        port=MCP_PORT,
+    )

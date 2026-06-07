@@ -10,7 +10,6 @@ from dist_automl.working_dir import WorkingDirectory,YamlManager
 class ProjectDict(BaseModel):
     name: str
     root: Path
-    deleted: bool = False
     metadata: Dict = Field(default_factory=dict)
 
     def __repr__(self):
@@ -103,13 +102,12 @@ class ProjectJSON:
         idx = self._find_index(name)
 
         if idx is not None:
-            if not overwrite and not self.project_config.projects[idx].deleted:
+            if not overwrite:
                 raise ValueError(f"Project '{name}' already exists. Use overwrite=True.")
             
             self.project_config.projects[idx] = ProjectDict(
                 name=name,
                 root=root,
-                deleted=False,
                 metadata=metadata or {}
             )
         else:
@@ -118,7 +116,6 @@ class ProjectJSON:
                 ProjectDict(
                     name=name,
                     root=root,
-                    deleted=False,
                     metadata=metadata or {}
                 )
             )
@@ -131,19 +128,8 @@ class ProjectJSON:
         if idx is None:
             raise ValueError(f"Project '{name}' not found.")
 
-        self.project_config.projects[idx].deleted = True
+        self.project_config.projects.pop(idx)
         self._save()
 
-    def retrack(self, name: str) -> None:
-        idx = self._find_index(name)
-
-        if idx is None:
-            raise ValueError(f"Project '{name}' not found.")
-
-        self.project_config.projects[idx].deleted = False
-        self._save()
-
-    def list_projects(self, include_deleted: bool = False) -> List[ProjectDict]:
-        if include_deleted:
-            return self.project_config.projects
-        return [p for p in self.project_config.projects if not p.deleted]
+    def list_projects(self) -> List[ProjectDict]:
+        return self.project_config.projects

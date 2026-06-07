@@ -83,12 +83,12 @@ def parse_key_value(settings: List[str]) -> Dict[str, str]:
 
 
 
-@app.command(help="List all projects (-a argument will give the info of deleted projects also)")
-def list(all: Annotated[bool, typer.Option("-a", "--all")] = False):
+@app.command(help="List all projects")
+def list():
     global projects_config
     print_header()
     
-    projects = projects_config.list_projects(include_deleted=all)
+    projects = projects_config.list_projects()
     
     if not projects:
         console.print("[warning]No projects found.[/warning]")
@@ -104,9 +104,7 @@ def list(all: Annotated[bool, typer.Option("-a", "--all")] = False):
 
     for p in projects:
         status = "✅"
-        if p.deleted:
-            status = "❌ [dim](deleted)[/dim]"
-        elif p.name == cwp:
+        if p.name == cwp:
             status = "⭐ [bold]ACTIVE[/bold]"
             
         metadata_str = ", ".join([f"{k}={v}" for k, v in p.metadata.items()]) if p.metadata else "[dim]None[/dim]"
@@ -239,15 +237,6 @@ def delete(name: Annotated[str,"Name of the Project that you want to delete"]):
     else:
         projects_config.delete(name=name)
         console.print(f"[success]Deleted project:[/success] [highlight]{name}[/highlight]")
-        
-        
-# @app.command(help="Recover a deleted project (Only recovers the config file)")
-# def recover(name: Annotated[str,"Name of the deleted project that needs to be recovered"]):
-#     global projects_config
-#     if name not in [p.name for p in projects_config.list_projects(True) if p.deleted]:
-#         typer.echo(f"No deleted projects found with name : {name}")
-#     else:
-#         projects_config.retrack(name)
         
     
 
@@ -749,34 +738,99 @@ def dashboard(
     uvicorn.run(dashboard_app, host=host, port=port)
 
 
-    
-@app.command()
-def mcp():
-    tool_root = Path(__file__).parent.parent.parent.parent
-    server_path = Path(__file__).parent / "mcp_server.py"
-    uv_path = shutil.which("uv")
-    
+# ── mcp subcommand group ────────────────────────────────────────────
+mcp_app = typer.Typer(
+    name="mcp",
+    help="MCP server management: show config or start the server.",
+    invoke_without_command=True,
+)
+app.add_typer(mcp_app)
+
+
+@mcp_app.callback(invoke_without_command=True)
+def mcp_default(ctx: typer.Context):
+    """
+    Show the MCP client configuration JSON (default when no subcommand is given).
+    Copy this into your MCP client settings to connect.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    from dist_automl.mcp_server import MCP_HOST, MCP_PORT
+
     schema = {
         "mcpServers": {
             "Auto_ML": {
-                "command": f"{uv_path}",
-                "args": ["--directory",
-                         f"{tool_root}",
-                         "run",
-                         f"{server_path}"]
+                "url": f"http://{MCP_HOST}:{MCP_PORT}/mcp"
             }
         }
     }
-    
+
     print_header()
-    console.print(Panel("[bold cyan]MCP Server Configuration[/bold cyan]\nCopy the following JSON into your MCP settings file.", border_style="blue"))
-    
-    richprint(schema,color="green",json_=True)
-    
-    console.print("\n[dim]Tip: You can use this configuration in Claude Desktop or other MCP-compatible clients.[/dim]")
-    
+    console.print(Panel(
+        "[bold cyan]MCP Server Configuration (HTTP)[/bold cyan]\n"
+        "Copy the following JSON into your MCP client settings file.",
+        border_style="blue",
+    ))
+
+    richprint(schema, color="green", json_=True)
+
+    console.print(
+        f"\n[dim]The MCP server listens on [bold]http://{MCP_HOST}:{MCP_PORT}/mcp[/bold] "
+        f"(streamable-http transport).[/dim]"
+    )
+    console.print(
+        "[dim]Tip: Run [bold]automl mcp start[/bold] to launch the server.[/dim]"
+    )
+
+
+@mcp_app.command(name="start", help="Start the MCP server over HTTP")
+def mcp_start(
+    host: Annotated[str, typer.Option("--host", "-h", help="Host to bind to")] = None,
+    port: Annotated[int, typer.Option("--port", "-p", help="Port to listen on")] = None,
+):
+    """Launch the MCP server using streamable-http transport."""
+    from dist_automl.mcp_server import server, MCP_HOST, MCP_PORT
+
+    use_host = host or MCP_HOST
+    use_port = port or MCP_PORT
+
+    import socket
+
+    if not (1 <= use_port <= 65535):
+        console.print(f"[error]Error:[/error] Port must be between 1 and 65535. Got {use_port}.")
+        raise typer.Exit(1)
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((use_host, use_port))
+    except socket.gaierror:
+        console.print(f"[error]Error:[/error] Invalid host address: '{use_host}'")
+        raise typer.Exit(1)
+    except OSError as e:
+        # 98 is EADDRINUSE on POSIX, 10048 is WSAEADDRINUSE on Windows
+        if e.errno in (98, 10048):
+            console.print(f"[error]Error:[/error] Port {use_port} is already in use on {use_host}.")
+        else:
+            console.print(f"[error]Error:[/error] Cannot bind to {use_host}:{use_port} ({e.strerror}).")
+        raise typer.Exit(1)
+
+    print_header()
+    console.print(
+        f"[success]Starting MCP server at "
+        f"[bold]http://{use_host}:{use_port}/mcp[/bold][/success]"
+    )
+    console.print("[dim]Press Ctrl+C to stop.[/dim]\n")
+
+    server.run(
+        transport="streamable-http",
+        host=use_host,
+        port=use_port,
+    )
+
+
+# ── end mcp subcommand group ────────────────────────────────────────
+
 
 if __name__ == "__main__":
     app()
-        
-        
