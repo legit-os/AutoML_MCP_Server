@@ -73,6 +73,18 @@ class WorkingDirectory:
             (self._root / folder).mkdir(parents=True, exist_ok=True)
 
         self._ensure_gitignore()
+        self._ensure_agent_md()
+
+    def _ensure_agent_md(self) -> None:
+        """Copy the agent.md template into the project if it doesn't already exist."""
+        target = self._root / "agent.md"
+        if target.exists():
+            return
+
+        import shutil
+        template = Path(__file__).resolve().parent.parent / "managers" / "agent.md"
+        if template.exists():
+            shutil.copy2(template, target)
 
     def _ensure_gitignore(self) -> None:
         """Create or update .gitignore with essential ignore entries."""

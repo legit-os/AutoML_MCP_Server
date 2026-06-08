@@ -24,6 +24,10 @@ server = FastMCP(
                  to capture a list of arguments for running a file so the files are reusable.
                  You an write utility files, analysis files and the main pipeline files.
                  Analysis files will create a dashboard so you need to write code according to the tool instruction.
+                 
+                 IMPORTANT: At the start of every session, read the 'agent.md' file in 
+                 the project root using the read_file tool. It contains project-specific 
+                 best practices and guidelines you must follow.
                  """
                  )
 

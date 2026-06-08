@@ -26,7 +26,6 @@ def test_add_project(temp_manager):
     projects = temp_manager.list_projects()
     assert len(projects) == 1
     assert projects[0].name == "TestProject"
-    assert projects[0].deleted is False
 
 
 
@@ -58,20 +57,12 @@ def test_delete_project(temp_manager):
     temp_manager.delete("Proj2")
 
     projects = temp_manager.list_projects()
-    assert projects == []  
-
-    all_projects = temp_manager.list_projects(include_deleted=True)
-    assert all_projects[0].deleted is True
+    assert projects == []
 
 
-def test_retrack_project(temp_manager):
-    temp_manager.add_or_update("Proj3", Path("/tmp/proj3"))
-    temp_manager.delete("Proj3")
-    temp_manager.retrack("Proj3")
-
-    projects = temp_manager.list_projects()
-    assert len(projects) == 1
-    assert projects[0].deleted is False
+def test_delete_nonexistent_raises(temp_manager):
+    with pytest.raises(ValueError):
+        temp_manager.delete("DoesNotExist")
 
 
 
