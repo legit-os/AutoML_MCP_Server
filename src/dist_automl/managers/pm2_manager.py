@@ -21,18 +21,34 @@ class PM2Manager:
         if not PM2Manager.check_installed():
             return "Error: PM2 is not installed. Please install it globally via 'npm install -g pm2'."
         
-        # Create a temporary bat file to run the command reliably on Windows
+        # Create a temporary JSON ecosystem config for PM2 to launch reliably
         import tempfile
         import os
+        import shlex
         
-        bat_path = os.path.join(tempfile.gettempdir(), f"{name}.bat")
-        try:
-            with open(bat_path, "w", encoding="utf-8") as f:
-                f.write(f"@echo off\n{command}\n")
-        except Exception as e:
-            return f"Error creating startup script: {e}"
+        parts = shlex.split(command, posix=False)
+        if not parts:
+            return "Error: Empty command."
             
-        res = PM2Manager._run_cmd(["pm2", "start", bat_path, "--name", name])
+        script = parts[0]
+        args = parts[1:]
+        
+        config = {
+            "apps": [{
+                "name": name,
+                "script": script,
+                "args": args
+            }]
+        }
+        
+        json_path = os.path.join(tempfile.gettempdir(), f"{name}_pm2.json")
+        try:
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(config, f)
+        except Exception as e:
+            return f"Error creating startup config: {e}"
+            
+        res = PM2Manager._run_cmd(["pm2", "start", json_path])
         if res.returncode != 0:
             return f"Failed to start task '{name}': {res.stderr.strip()}"
         return f"Successfully started task '{name}' in background."

@@ -1,0 +1,7 @@
+{
+  "apps": [{
+    "name": "test_ping",
+    "script": "ping",
+    "args": ["127.0.0.1", "-n", "20"]
+  }]
+}
