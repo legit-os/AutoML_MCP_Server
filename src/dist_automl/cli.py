@@ -668,6 +668,74 @@ def meta_delete(
 
 # ── end meta subcommand group ───────────────────────────────────────
 
+@app.command(help="Recreate a dashboard item by rerunning its analysis script")
+def recreate(
+    script_name: Annotated[str, typer.Argument(help="Name of the analysis script (without .py)")]
+):
+    wd = _get_working_dir()
+    
+    dashboard_dir = wd.root / "dashboard_runs"
+    meta_file = dashboard_dir / "metadata.json"
+    
+    if not meta_file.exists():
+        console.print("[error]Error:[/error] No dashboard metadata found.")
+        raise typer.Exit(1)
+        
+    try:
+        metadata = json.loads(meta_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        console.print(f"[error]Error reading metadata:[/error] {e}")
+        raise typer.Exit(1)
+        
+    scripts = metadata.get("scripts", {})
+    
+    target_key = None
+    for script_key in scripts:
+        if Path(script_key).stem == script_name:
+            target_key = script_key
+            break
+            
+    if target_key is None:
+        console.print(f"[error]Error:[/error] Script '{script_name}' not found in dashboard metadata.")
+        raise typer.Exit(1)
+        
+    variables = list(scripts[target_key].keys())
+    
+    if not variables:
+        console.print(f"[warning]Warning:[/warning] No variables tracked for '{script_name}'.")
+        raise typer.Exit(1)
+        
+    console.print(f"[info]Rerunning '{script_name}' to capture: {', '.join(variables)}...[/info]")
+    
+    from dist_automl.dashboard_maker_custom.dashboard_capture import capture_script_outputs
+    
+    try:
+        script_path = wd.root / "analysis" / f"{script_name}.py"
+        if not script_path.exists():
+            console.print(f"[error]Error:[/error] Script file '{script_path}' does not exist.")
+            raise typer.Exit(1)
+            
+        captured = capture_script_outputs(
+            project_root=wd.root,
+            script_path=script_path,
+            variables=variables
+        )
+        
+        file_content = script_path.read_text(encoding="utf-8")
+        wd.update_analysis(
+            name=script_name, 
+            path=Path(f"analysis/{script_name}.py"), 
+            metadata=captured, 
+            content=file_content, 
+            overwrite=True
+        )
+        
+        console.print(f"[success]Successfully recreated dashboard items for '{script_name}'.[/success]")
+    except Exception as e:
+        console.print(f"[error]Error recreating dashboard items:[/error] {e}")
+        raise typer.Exit(1)
+
+
 @app.command(help="Launch the custom React/FastAPI dashboard")
 def dashboard(
     host: str = "127.0.0.1",

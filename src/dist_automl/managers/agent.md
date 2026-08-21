@@ -14,7 +14,8 @@
 - **Pipeline files** should be modular and reusable. Use `sys.argv` to accept command-line arguments so files can be run independently or composed together.
 - **Utility files** are shared helpers — keep them focused and well-documented so pipeline stages can import from them.
 - **Use `depends_on`** when writing pipeline elements to declare which other elements or utils they rely on. This keeps the dependency graph explicit.
-- **Don't overwrite without asking.** If a file already exists, confirm with the user before passing `overwrite=True`.
+- **Updating dependencies without rewriting:** To update an element's `depends_on` metadata without changing its code, call `write_pipeline_element` with `overwrite=True` and omit the `content` argument (or pass `null`/`None`). This saves tokens and avoids overwriting the file.
+- **Don't overwrite without asking.** If a file already exists, confirm with the user before passing `overwrite=True` (unless you are only updating metadata as described above).
 
 ## Analysis & Dashboard
 

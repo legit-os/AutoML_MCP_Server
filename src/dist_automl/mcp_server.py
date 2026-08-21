@@ -256,7 +256,8 @@ def _ls_recursive(base: Path, current: Path, max_depth: int, current_depth: int,
 
 
 @server.tool(tags={serverstate.file})
-def write_pipeline_element(stage: str, name: str, content: str,
+def write_pipeline_element(stage: str, name: str,
+                           content: str = None,
                            depends_on:list[str] = None,
                            metadata: dict = None,
                            overwrite: bool = False ):
