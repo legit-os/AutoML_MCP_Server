@@ -693,26 +693,46 @@ def manage_background_task(action: Literal["stop", "delete", "logs", "status"], 
 
 
 @server.tool(tags={serverstate.bg})
-def wait_and_notify(duration_sec: int, message: str, ctx: Context):
+def wait_and_notify(duration_sec: int, message: str, ctx: Context, task_name: str = None):
     """
-    Schedule a notification in the background. The tool returns immediately, 
-    and after 'duration_sec' seconds, it will send an MCP log message with 'message' 
-    to alert you. Use this for waiting on tasks without blocking your session.
+    Schedule a notification in the background. The tool returns immediately.
+    If 'task_name' is provided, it monitors the PM2 task and notifies you as soon as it completes.
+    Otherwise, or if the task takes too long, it notifies you after 'duration_sec' expires.
     """
     import threading
     import time
 
     def _waiter():
-        time.sleep(duration_sec)
+        start_time = time.time()
+        completed_early = False
+        
+        while time.time() - start_time < duration_sec:
+            if task_name:
+                try:
+                    status_info = PM2Manager.status(task_name)
+                    # If PM2 returns an error or the status is not 'online'
+                    if "error" in status_info or status_info.get("status") not in ("online", "launching"):
+                        completed_early = True
+                        break
+                except Exception:
+                    pass
+            time.sleep(1)
+            
         try:
-            ctx.info(f"TIMER EXPIRED: {message}")
+            if completed_early:
+                ctx.info(f"TASK COMPLETED: Task '{task_name}' finished. {message}")
+            else:
+                ctx.info(f"TIMER EXPIRED: {message}")
         except Exception:
             pass
 
     try:
         t = threading.Thread(target=_waiter, daemon=True)
         t.start()
-        return f"Timer set for {duration_sec} seconds. You will be notified with the message: '{message}'."
+        msg = f"Timer set for {duration_sec} seconds."
+        if task_name:
+            msg += f" Will notify early if '{task_name}' finishes."
+        return msg
     except Exception as e:
         return f"Error: {e}"
 
