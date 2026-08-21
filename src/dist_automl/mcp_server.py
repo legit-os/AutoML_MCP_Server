@@ -2,8 +2,10 @@ from pathlib import Path
 import sys
 from typing import Literal
 
-from fastmcp import FastMCP
+import asyncio
+from fastmcp import FastMCP, Context
 from dist_automl.working_dir import WorkingDirectory
+from dist_automl.managers.pm2_manager import PM2Manager
 from dist_automl.dashboard_maker_custom.dashboard_capture import capture_script_outputs
 
 cwp_path = (Path(__file__).parent / "managers" / "current_project_root.txt").read_text()
@@ -37,21 +39,23 @@ class ServerState():
         self.info = "info"
         self.file = "file"
         self.dash = "dashboard"
+        self.bg = "background_tasks"
         self.state = self.info
-        self.state_options = {self.info, self.file, self.dash}
+        self.state_options = {self.info, self.file, self.dash, self.bg}
         self.state_changer = "change_tool_list"
         
 
 serverstate = ServerState()
 
 @server.tool(tags=serverstate.state_changer)
-def change_tool_list(state: Literal["info_and_file_reading","file_writing","analysis_and_dashboard"]):
+def change_tool_list(state: Literal["info_and_file_reading","file_writing","analysis_and_dashboard","background_tasks"]):
     """
     Use this tool to access other tools that the server provides:
     
     info_and_file_reading : provides project info, how to use guide, file running and reading tools
     file_writing : provides tools to write any type of file
     analysis_and_dashboard : provides tools to write analysis code and create dashboard widget
+    background_tasks : provides tools to run terminal commands in the background via pm2
     """
     
     if state == "info_and_file_reading":
@@ -63,6 +67,9 @@ def change_tool_list(state: Literal["info_and_file_reading","file_writing","anal
     elif state == "file_writing":
         serverstate.state = "file"
         server.enable(tags={serverstate.file},only=True)
+    elif state == "background_tasks":
+        serverstate.state = "background_tasks"
+        server.enable(tags={serverstate.bg},only=True)
     
     server.enable(names={serverstate.state_changer})
     
@@ -649,6 +656,58 @@ def read_dashboard_items(
         }
 
     return f"Error: Unknown action '{action}'. Use 'list' or 'read'."
+
+
+@server.tool(tags={serverstate.bg})
+def run_background_task(command: str, name: str):
+    """
+    Run a terminal command in the background using PM2.
+    """
+    try:
+        return PM2Manager.start(command, name)
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@server.tool(tags={serverstate.bg})
+def manage_background_task(action: Literal["stop", "delete", "logs", "status"], name: str, lines: int = 50):
+    """
+    Manage an existing PM2 background task.
+    Actions:
+    - stop: stop a running task.
+    - delete: delete a task completely.
+    - logs: fetch recent stdout/stderr lines (up to 'lines', default 50).
+    - status: check if the task is running and its resource usage.
+    """
+    try:
+        if action == "stop":
+            return PM2Manager.stop(name)
+        elif action == "delete":
+            return PM2Manager.delete(name)
+        elif action == "logs":
+            return PM2Manager.logs(name, lines)
+        elif action == "status":
+            return PM2Manager.status(name)
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@server.tool(tags={serverstate.bg})
+def wait_and_notify(duration_sec: int, message: str, ctx: Context):
+    """
+    Schedule a notification in the background. The tool returns immediately, 
+    and after 'duration_sec' seconds, it will send an MCP log message with 'message' 
+    to alert you. Use this for waiting on tasks without blocking your session.
+    """
+    async def _waiter():
+        await asyncio.sleep(duration_sec)
+        ctx.info(f"TIMER EXPIRED: {message}")
+
+    try:
+        asyncio.create_task(_waiter())
+        return f"Timer set for {duration_sec} seconds. You will be notified with the message: '{message}'."
+    except Exception as e:
+        return f"Error: {e}"
 
 
 # server.enable(tags={serverstate.info},only=True)

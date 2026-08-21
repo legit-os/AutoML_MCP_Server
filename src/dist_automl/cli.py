@@ -267,32 +267,44 @@ def _get_working_dir():
     return WorkingDirectory(pr.root)
 
 
-@track_app.command(help="Register a pipeline element (.py) that already exists on disk")
+@track_app.command(help="Register a pipeline element (.py) that already exists on disk, or update dependencies of an existing element.")
 def pipeline(
+    stage: Annotated[str, typer.Option("--stage", "-s", help="Pipeline stage this element belongs to (e.g. preprocessing, training)")],
     file: Annotated[
-        Path,
+        Optional[Path],
         typer.Argument(
-            help="Path to the .py file (absolute or relative to project root, must be inside pipeline/)",
+            help="Path to the .py file (absolute or relative to project root). Omit if only updating dependencies.",
             exists=True,
             file_okay=True,
             dir_okay=False,
         ),
-    ],
-    stage: Annotated[str, typer.Option("--stage", "-s", help="Pipeline stage this element belongs to (e.g. preprocessing, training)")],
+    ] = None,
     name: Annotated[Optional[str], typer.Option("--name", "-n", help="Unique element name (defaults to file stem)")] = None,
     depends_on: Annotated[Optional[List[str]], typer.Option("--dep", "-d", help="Dependencies in 'stage.element' or 'utils.file' format")] = None,
     metadata: Annotated[Optional[List[str]], typer.Option("--meta", "-m", help="Key-value pairs like -m k=v")] = None,
 ):
     wd = _get_working_dir()
-    file = file.resolve()
-    element_name = name or file.stem
+    
+    if file is None:
+        if name is None:
+            console.print("[error]Error:[/error] If file is omitted, you must provide --name and --stage to update an existing element.")
+            raise typer.Exit(1)
+        element_name = name
+        entry = wd.config.get(f"pipeline.stages.{stage}.elements.{name}")
+        if not entry or "path" not in entry:
+            console.print(f"[error]Error:[/error] Element {stage}.{name} not found in config. Cannot update dependencies without a file path.")
+            raise typer.Exit(1)
+        relative_path = Path(entry["path"])
+    else:
+        file = file.resolve()
+        element_name = name or file.stem
 
-    # Make path relative to project root
-    try:
-        relative_path = file.relative_to(wd.root)
-    except ValueError:
-        console.print(f"[error]Error:[/error] File must be inside the project root [info]{wd.root}[/info]")
-        raise typer.Exit(1)
+        # Make path relative to project root
+        try:
+            relative_path = file.relative_to(wd.root)
+        except ValueError:
+            console.print(f"[error]Error:[/error] File must be inside the project root [info]{wd.root}[/info]")
+            raise typer.Exit(1)
 
     meta = parse_key_value(metadata or [])
 

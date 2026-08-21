@@ -28,6 +28,7 @@ By providing a Model Context Protocol (MCP) server alongside a dedicated CLI, it
 
 ### Prerequisites
 Make sure you have [uv](https://docs.astral.sh/uv/) installed.
+For background task support, you must also have [PM2](https://pm2.keymetrics.io/) installed globally via npm (`npm install -g pm2`).
 
 ### Installation
 
