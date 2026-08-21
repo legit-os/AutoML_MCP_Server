@@ -7,7 +7,8 @@ class PM2Manager:
     def _run_cmd(cmd: list[str]) -> subprocess.CompletedProcess:
         try:
             # shell=True helps on Windows to resolve npm global packages like 'pm2'
-            return subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            # explicitly set encoding="utf-8" to handle PM2's box drawing characters
+            return subprocess.run(cmd, capture_output=True, text=True, shell=True, encoding="utf-8")
         except Exception as e:
             raise RuntimeError(f"Failed to execute PM2 command: {e}")
 

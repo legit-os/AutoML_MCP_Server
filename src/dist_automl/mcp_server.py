@@ -719,10 +719,11 @@ def wait_and_notify(duration_sec: int, message: str, ctx: Context, task_name: st
             time.sleep(1)
             
         try:
+            import asyncio
             if completed_early:
-                ctx.info(f"TASK COMPLETED: Task '{task_name}' finished. {message}")
+                asyncio.run(ctx.info(f"TASK COMPLETED: Task '{task_name}' finished. {message}"))
             else:
-                ctx.info(f"TIMER EXPIRED: {message}")
+                asyncio.run(ctx.info(f"TIMER EXPIRED: {message}"))
         except Exception:
             pass
 
