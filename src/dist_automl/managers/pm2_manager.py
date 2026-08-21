@@ -37,7 +37,8 @@ class PM2Manager:
             "apps": [{
                 "name": name,
                 "script": script,
-                "args": args
+                "args": args,
+                "autorestart": False
             }]
         }
         
