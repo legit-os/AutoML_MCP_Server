@@ -21,8 +21,18 @@ class PM2Manager:
         if not PM2Manager.check_installed():
             return "Error: PM2 is not installed. Please install it globally via 'npm install -g pm2'."
         
-        # In pm2, to run a command with arguments as a script, we can pass it as a string
-        res = PM2Manager._run_cmd(["pm2", "start", command, "--name", name])
+        # Create a temporary bat file to run the command reliably on Windows
+        import tempfile
+        import os
+        
+        bat_path = os.path.join(tempfile.gettempdir(), f"{name}.bat")
+        try:
+            with open(bat_path, "w", encoding="utf-8") as f:
+                f.write(f"@echo off\n{command}\n")
+        except Exception as e:
+            return f"Error creating startup script: {e}"
+            
+        res = PM2Manager._run_cmd(["pm2", "start", bat_path, "--name", name])
         if res.returncode != 0:
             return f"Failed to start task '{name}': {res.stderr.strip()}"
         return f"Successfully started task '{name}' in background."
