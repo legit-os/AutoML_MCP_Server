@@ -699,12 +699,19 @@ def wait_and_notify(duration_sec: int, message: str, ctx: Context):
     and after 'duration_sec' seconds, it will send an MCP log message with 'message' 
     to alert you. Use this for waiting on tasks without blocking your session.
     """
-    async def _waiter():
-        await asyncio.sleep(duration_sec)
-        ctx.info(f"TIMER EXPIRED: {message}")
+    import threading
+    import time
+
+    def _waiter():
+        time.sleep(duration_sec)
+        try:
+            ctx.info(f"TIMER EXPIRED: {message}")
+        except Exception:
+            pass
 
     try:
-        asyncio.create_task(_waiter())
+        t = threading.Thread(target=_waiter, daemon=True)
+        t.start()
         return f"Timer set for {duration_sec} seconds. You will be notified with the message: '{message}'."
     except Exception as e:
         return f"Error: {e}"
