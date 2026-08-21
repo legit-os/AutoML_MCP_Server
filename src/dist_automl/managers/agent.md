@@ -23,6 +23,12 @@
 - Write self-contained analysis scripts — they run in a subprocess, so they must import everything they need.
 - Use `read_dashboard_items` to review previously captured data before creating new analysis.
 
+## Background Tasks & Processes
+
+- **Long-Running Commands:** If you need to execute a long-running process (e.g., model training, data scraping), use `run_background_task` to spawn it via PM2. 
+- **Monitoring:** Do not poll endlessly for completion. Instead, use `wait_and_notify` and pass the `task_name`. The timer will run asynchronously on a daemon thread and notify you early when the task completes.
+- **Task Management:** Use `manage_background_task` to fetch logs (`action="logs"`) or check if a task is "online" or "stopped" (`action="status"`). Clean up tasks when they are no longer needed (`action="delete"`).
+
 ## Project Structure
 
 ```

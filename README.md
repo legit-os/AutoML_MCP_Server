@@ -88,6 +88,9 @@ If you use a agent that uses an extra tool calling agent or dedicated tool like 
 | `create_analysis_dashboard_item` | Writes an analysis script and automatically captures selected variables (DataFrames, plots) to the dashboard. |
 | `read_dashboard_items` | Allows the agent to read back the data (lists, dicts, DataFrames) it previously plotted on the dashboard. |
 | `update_project_metadata` | Updates global project metadata (author, version, etc.). |
+| `run_background_task` | Launches a terminal command or script in the background securely via PM2. |
+| `manage_background_task` | Stops, deletes, or checks the status and logs of a running background PM2 task. |
+| `wait_and_notify` | Sets an asynchronous timer that runs in the background. If attached to a task, it polls and fires an MCP notification when the task finishes, otherwise it fires when the timer expires. |
 
 
-This server doesn't have a tool to run cli commands since many agents restrict that behaviour, you may need to use your agent providers native mcp server for running commands (like antigravity and claude can run commands from there own capabilties).
+This server doesn't have a generic synchronous tool to run foreground CLI commands since many agents restrict that behaviour; you may need to use your agent provider's native MCP server for running short commands (like antigravity and claude can run commands from their own capabilities). However, the background task tools provided above allow safe, asynchronous execution of long-running operations.
