@@ -659,12 +659,28 @@ def read_dashboard_items(
 
 
 @server.tool(tags={serverstate.bg})
-def run_background_task(command: str, name: str):
+def run_background_task(command: str, name: str, background: bool = True):
     """
-    Run a terminal command in the background using PM2.
+    Start a background command or script via PM2. 
+    If 'background' is True, returns immediately after starting. 
+    If 'background' is False, blocks and waits for the task to finish before returning its status.
     """
+    import time
     try:
-        return PM2Manager.start(command, name)
+        res = PM2Manager.start(command, name)
+        if background:
+            return res
+            
+        # Blocking mode: Wait for task to finish
+        while True:
+            status_info = PM2Manager.status(name)
+            if "error" in status_info or status_info.get("status") not in ("online", "launching"):
+                break
+            time.sleep(2)
+            
+        final_status = PM2Manager.status(name)
+        logs = PM2Manager.logs(name, lines=20)
+        return f"Task '{name}' finished with status: {final_status.get('status')}.\nLogs:\n{logs}"
     except Exception as e:
         return f"Error: {e}"
 
@@ -688,52 +704,6 @@ def manage_background_task(action: Literal["stop", "delete", "logs", "status"], 
             return PM2Manager.logs(name, lines)
         elif action == "status":
             return PM2Manager.status(name)
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@server.tool(tags={serverstate.bg})
-def wait_and_notify(duration_sec: int, message: str, ctx: Context, task_name: str = None):
-    """
-    Schedule a notification in the background. The tool returns immediately.
-    If 'task_name' is provided, it monitors the PM2 task and notifies you as soon as it completes.
-    Otherwise, or if the task takes too long, it notifies you after 'duration_sec' expires.
-    """
-    import threading
-    import time
-
-    def _waiter():
-        start_time = time.time()
-        completed_early = False
-        
-        while time.time() - start_time < duration_sec:
-            if task_name:
-                try:
-                    status_info = PM2Manager.status(task_name)
-                    # If PM2 returns an error or the status is not 'online'
-                    if "error" in status_info or status_info.get("status") not in ("online", "launching"):
-                        completed_early = True
-                        break
-                except Exception:
-                    pass
-            time.sleep(1)
-            
-        try:
-            import asyncio
-            if completed_early:
-                asyncio.run(ctx.info(f"TASK COMPLETED: Task '{task_name}' finished. {message}"))
-            else:
-                asyncio.run(ctx.info(f"TIMER EXPIRED: {message}"))
-        except Exception:
-            pass
-
-    try:
-        t = threading.Thread(target=_waiter, daemon=True)
-        t.start()
-        msg = f"Timer set for {duration_sec} seconds."
-        if task_name:
-            msg += f" Will notify early if '{task_name}' finishes."
-        return msg
     except Exception as e:
         return f"Error: {e}"
 
