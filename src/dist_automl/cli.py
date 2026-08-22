@@ -727,13 +727,26 @@ def recreate(
             console.print(f"[error]Error:[/error] Script file '{script_path}' does not exist.")
             raise typer.Exit(1)
             
+        # Read the current file content
+        file_content = script_path.read_text(encoding="utf-8")
+        
+        # Completely delete the old analysis (removes old artifacts, config entries, and script file)
+        try:
+            wd.delete_analysis(script_name)
+        except Exception:
+            pass
+            
+        # Restore the script file so it can be run
+        script_path.write_text(file_content, encoding="utf-8")
+        
+        # Run the script and capture new artifacts
         captured = capture_script_outputs(
             project_root=wd.root,
             script_path=script_path,
             variables=variables
         )
         
-        file_content = script_path.read_text(encoding="utf-8")
+        # Register it back in the configuration cleanly
         wd.update_analysis(
             name=script_name, 
             path=Path(f"analysis/{script_name}.py"), 
