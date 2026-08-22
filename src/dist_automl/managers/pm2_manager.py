@@ -18,7 +18,7 @@ class PM2Manager:
         return res.returncode == 0
 
     @staticmethod
-    def start(command: str, name: str) -> str:
+    def start(command: str, name: str, cwd: str = None) -> str:
         if not PM2Manager.check_installed():
             return "Error: PM2 is not installed. Please install it globally via 'npm install -g pm2'."
         
@@ -26,6 +26,7 @@ class PM2Manager:
         import tempfile
         import os
         import shlex
+        import json
         
         parts = shlex.split(command, posix=False)
         if not parts:
@@ -34,13 +35,17 @@ class PM2Manager:
         script = parts[0]
         args = parts[1:]
         
+        app_config = {
+            "name": name,
+            "script": script,
+            "args": args,
+            "autorestart": False
+        }
+        if cwd:
+            app_config["cwd"] = cwd
+            
         config = {
-            "apps": [{
-                "name": name,
-                "script": script,
-                "args": args,
-                "autorestart": False
-            }]
+            "apps": [app_config]
         }
         
         json_path = os.path.join(tempfile.gettempdir(), f"{name}_pm2.json")

@@ -25,7 +25,7 @@
 
 ## Background Tasks & Processes
 
-- **Long-Running Commands:** If you need to execute a long-running process (e.g., model training, data scraping), use `run_background_task` to spawn it via PM2. 
+- **Long-Running Commands:** If you need to execute a long-running process (e.g., model training, data scraping), use `run_background_task` to spawn it via PM2. You can optionally specify a `cwd` to run the command in a specific directory (defaults to the active project root). 
 - **Execution Modes:** Use `background=True` (default) to start the task and return immediately (non-blocking). Note: You will NOT be notified when the task completes. Use `background=False` if you need to block and wait for the task to finish before proceeding (the tool will wait and return the final status and logs).
 - **Task Management:** Use `manage_background_task` to fetch logs (`action="logs"`) or check if a task is "online" or "stopped" (`action="status"`). Clean up tasks when they are no longer needed (`action="delete"`).
 

@@ -659,15 +659,19 @@ def read_dashboard_items(
 
 
 @server.tool(tags={serverstate.bg})
-def run_background_task(command: str, name: str, background: bool = True):
+def run_background_task(command: str, name: str, background: bool = True, cwd: str = None):
     """
     Start a background command or script via PM2. 
     If 'background' is True, returns immediately after starting. 
     If 'background' is False, blocks and waits for the task to finish before returning its status.
+    'cwd' specifies the working directory. Defaults to the active project root if not provided.
     """
     import time
     try:
-        res = PM2Manager.start(command, name)
+        if cwd is None:
+            cwd = str(wd.project_root)
+            
+        res = PM2Manager.start(command, name, cwd)
         if background:
             return res
             
