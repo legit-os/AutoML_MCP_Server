@@ -83,8 +83,8 @@ def parse_key_value(settings: List[str]) -> Dict[str, str]:
 
 
 
-@app.command(help="List all projects")
-def list():
+@app.command(name="list", help="List all projects")
+def list_projects_command():
     global projects_config
     print_header()
     
