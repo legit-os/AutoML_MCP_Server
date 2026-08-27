@@ -524,7 +524,30 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
         script_path = cwp_path / "analysis" / f"{name}.py"
         
         wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata={}, content=file_content)
-        captured = capture_script_outputs(project_root=cwp_path, script_path=script_path, variables=capture_variables)
+        
+        import subprocess
+        import json
+        src_dir = Path(__file__).resolve().parent.parent.parent.as_posix()
+        cmd = [
+            "uv", "run", "python", "-c",
+            f"import sys; sys.path.insert(0, '{src_dir}'); "
+            f"from dist_automl.dashboard_maker_custom.dashboard_capture import capture_script_outputs; "
+            f"capture_script_outputs('{cwp_path.as_posix()}', '{script_path.as_posix()}', {capture_variables})"
+        ]
+        
+        result = subprocess.run(cmd, cwd=str(cwp_path), capture_output=True, text=True)
+        if result.returncode != 0:
+            return f"Error running script:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            
+        meta_file = cwp_path / "dashboard_runs" / "metadata.json"
+        captured = {}
+        if meta_file.exists():
+            try:
+                metadata = json.loads(meta_file.read_text())
+                captured = metadata.get("scripts", {}).get(str(script_path), {})
+            except json.JSONDecodeError:
+                pass
+                
         wd.update_analysis(name=name, path=Path(f"analysis/{name}.py"), metadata=captured, content=file_content)
         return "captured provided variables and added to dashboard"
     except Exception as e:
