@@ -531,7 +531,7 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
         src_dir = Path(__file__).resolve().parent.parent.as_posix()
         cmd = [
             "uv", "run", "python", "-c",
-            f"import sys; sys.path.insert(0, '{src_dir}'); "
+            f"import sys; sys.path.append('{src_dir}'); "
             f"from dist_automl.dashboard_maker_custom.dashboard_capture import capture_script_outputs; "
             f"capture_script_outputs('{cwp_path.as_posix()}', '{script_path.as_posix()}', {capture_variables})"
         ]
