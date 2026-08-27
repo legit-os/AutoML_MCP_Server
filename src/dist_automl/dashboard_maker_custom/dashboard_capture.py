@@ -1,5 +1,6 @@
 import json
 import runpy
+import subprocess
 from pathlib import Path
 
 from .serializer import (
@@ -14,6 +15,33 @@ from .type_detector import detect_type
 
 
 def capture_script_outputs(project_root, script_path, variables):
+    project_root = Path(project_root)
+    script_path = Path(script_path)
+    
+    # __file__ is in dist_automl/dashboard_maker_custom/dashboard_capture.py
+    # .parent.parent.parent gets the directory containing dist_automl (e.g. src or site-packages)
+    src_dir = Path(__file__).resolve().parent.parent.parent
+    src_dir_str = src_dir.as_posix()
+    
+    cmd = [
+        "uv", "run", "python", "-c",
+        f"import sys; sys.path.insert(0, '{src_dir_str}'); "
+        f"from dist_automl.dashboard_maker_custom.dashboard_capture import _internal_capture; "
+        f"_internal_capture('{project_root.as_posix()}', '{script_path.as_posix()}', {variables})"
+    ]
+    
+    result = subprocess.run(cmd, cwd=str(project_root), capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"Script execution failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
+    
+    meta_file = project_root / "dashboard_runs" / "metadata.json"
+    if meta_file.exists():
+        metadata = json.loads(meta_file.read_text())
+        return metadata.get("scripts", {}).get(str(script_path), {})
+    return {}
+
+
+def _internal_capture(project_root, script_path, variables):
 
     project_root = Path(project_root)
     script_path = Path(script_path)
