@@ -527,7 +527,8 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
         
         import subprocess
         import json
-        src_dir = Path(__file__).resolve().parent.parent.parent.as_posix()
+        # __file__ is in dist_automl/mcp_server.py, so .parent.parent gets the directory containing dist_automl
+        src_dir = Path(__file__).resolve().parent.parent.as_posix()
         cmd = [
             "uv", "run", "python", "-c",
             f"import sys; sys.path.insert(0, '{src_dir}'); "
