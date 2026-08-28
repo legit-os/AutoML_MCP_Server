@@ -7,6 +7,7 @@ from fastmcp import FastMCP, Context
 from dist_automl.working_dir import WorkingDirectory
 from dist_automl.managers.pm2_manager import PM2Manager
 from dist_automl.dashboard_maker_custom.dashboard_capture import capture_script_outputs
+from dist_automl.managers.logger import logged_tool
 
 cwp_path = (Path(__file__).parent / "managers" / "current_project_root.txt").read_text()
 
@@ -27,7 +28,7 @@ server = FastMCP(
                  You an write utility files, analysis files and the main pipeline files.
                  Analysis files will create a dashboard so you need to write code according to the tool instruction.
                  
-                 IMPORTANT: At the start of every session, read the 'agent.md' file in 
+                 IMPORTANT: At the start of every session, read the '.agents/skills/automl-workflow/SKILL.md' file in 
                  the project root using the read_file tool. It contains project-specific 
                  best practices and guidelines you must follow.
                  """
@@ -48,6 +49,7 @@ class ServerState():
 serverstate = ServerState()
 
 @server.tool(tags=serverstate.state_changer)
+@logged_tool
 def change_tool_list(state: Literal["info_and_file_reading","file_writing","analysis_and_dashboard","background_tasks"]):
     """
     Use this tool to access other tools that the server provides:
@@ -76,6 +78,7 @@ def change_tool_list(state: Literal["info_and_file_reading","file_writing","anal
     return "Enabled requested tools and disabled others, you can check the tools exposed to you"
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def get_current_project_info():
     """
     Get the Projects info that is stored in the config file of the Project
@@ -91,6 +94,7 @@ def get_current_project_info():
 
 
 @server.tool(tags=serverstate.state_options)
+@logged_tool
 def manage_plan(action: Literal["read", "rewrite", "append"], content: str = None):
     """
     Manage the agentplan.md planning file in the project root.
@@ -151,6 +155,7 @@ def _resolve_path(path: str) -> Path:
 
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def read_file(path: str, start_line: int = None, end_line: int = None):
     """
     Read a file from the project with optional line range.
@@ -205,6 +210,7 @@ def read_file(path: str, start_line: int = None, end_line: int = None):
 
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def ls_dir(path: str = ".", depth: int = 1):
     """
     List directory contents from the project with controllable depth.
@@ -263,6 +269,7 @@ def _ls_recursive(base: Path, current: Path, max_depth: int, current_depth: int,
 
 
 @server.tool(tags={serverstate.file})
+@logged_tool
 def write_pipeline_element(stage: str, name: str,
                            content: str = None,
                            depends_on:list[str] = None,
@@ -288,6 +295,7 @@ def write_pipeline_element(stage: str, name: str,
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
+@logged_tool
 def write_util(name: str, content: str, overwrite : bool = False, metadata: dict = None):
     "Write helper files for the pipeline"
     try:
@@ -298,6 +306,7 @@ def write_util(name: str, content: str, overwrite : bool = False, metadata: dict
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
+@logged_tool
 def manage_notebook(action: Literal["read", "add", "edit", "delete"], 
                     notebook: str = None,
                     index: int = None, 
@@ -326,6 +335,7 @@ def manage_notebook(action: Literal["read", "add", "edit", "delete"],
                                    index=index, content=content, cell_type=cell_type)
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def list_notebooks():
     """
     List all Jupyter notebook (.ipynb) files found in the project.
@@ -340,6 +350,7 @@ def list_notebooks():
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
+@logged_tool
 def delete_pipeline_element(stage:str,name:str):
     "delete a file from the pipeline"
     try:
@@ -349,6 +360,7 @@ def delete_pipeline_element(stage:str,name:str):
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
+@logged_tool
 def delete_util(name:str):
     "delete a utility file"
     try:
@@ -358,6 +370,7 @@ def delete_util(name:str):
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def register_dataset(name: str, source: str, dtype: str = None, description: str = None, metadata: dict = None):
     """
     Add or update a dataset in the project configuration.
@@ -382,6 +395,7 @@ def register_dataset(name: str, source: str, dtype: str = None, description: str
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def delete_dataset(name: str):
     """
     Delete a dataset from the project configuration.
@@ -393,6 +407,7 @@ def delete_dataset(name: str):
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def update_project_metadata(updates: dict):
     """
     Set or update top-level project metadata key-value pairs in the config.
@@ -410,6 +425,7 @@ def update_project_metadata(updates: dict):
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def get_project_metadata(key: str = None):
     """
     Get project-level metadata from the config.
@@ -428,6 +444,7 @@ def get_project_metadata(key: str = None):
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.info})
+@logged_tool
 def delete_project_metadata(key: str):
     """
     Delete a specific key from the project-level metadata.
@@ -442,6 +459,7 @@ def delete_project_metadata(key: str):
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
+@logged_tool
 def manage_ops_file(
     action: Literal["write", "append", "read"],
     file_path: str,
@@ -500,6 +518,7 @@ def manage_ops_file(
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.file})
+@logged_tool
 def delete_analysis(name: str):
     """
     Delete an analysis file from the project (removes from config and disk).
@@ -514,6 +533,7 @@ def delete_analysis(name: str):
         return f"Error: {e}"
 
 @server.tool(tags={serverstate.dash})
+@logged_tool
 def create_analysis_dashboard_item(name: str,file_content: str, capture_variables: list[str]):
     """
     create a file that produces some variable containing pandas dataframe or matplotlib 
@@ -556,6 +576,7 @@ def create_analysis_dashboard_item(name: str,file_content: str, capture_variable
 
 
 @server.tool(tags={serverstate.dash})
+@logged_tool
 def read_dashboard_items(
     action: Literal["list", "read"],
     script_name: str = None,
@@ -683,6 +704,7 @@ def read_dashboard_items(
 
 
 @server.tool(tags={serverstate.bg})
+@logged_tool
 def run_background_task(command: str, name: str, background: bool = True, cwd: str = None):
     """
     Start a background command or script via PM2. 
@@ -714,6 +736,7 @@ def run_background_task(command: str, name: str, background: bool = True, cwd: s
 
 
 @server.tool(tags={serverstate.bg})
+@logged_tool
 def manage_background_task(action: Literal["stop", "delete", "logs", "status"], name: str, lines: int = 50):
     """
     Manage an existing PM2 background task.

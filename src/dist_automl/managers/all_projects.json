@@ -1,4 +1,10 @@
 {
-    "projects": [],
+    "projects": [
+        {
+            "name": "dummy",
+            "root": "D:\\AutoML_MCP\\dummy",
+            "metadata": {}
+        }
+    ],
     "uv_path": "C:\\Users\\himan\\.local\\bin\\uv.EXE"
 }

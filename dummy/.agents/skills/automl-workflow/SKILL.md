@@ -1,7 +1,11 @@
-# Agent Best Practices
+---
+name: automl-workflow
+description: Guidelines, best practices, and instructions for managing end-to-end Machine Learning workflows, planning, pipeline stages, utilities, dashboards, and background tasks using AutoML MCP.
+---
 
-> This file is automatically created when a project is initialized with AutoML MCP.  
-> You can edit it to customize the agent's behavior for this specific project.
+# AutoML MCP Workflow & Guidelines
+
+> This skill provides instructions and best practices for managing machine learning projects with AutoML MCP.
 
 ## Getting Started
 
@@ -34,7 +38,8 @@
 ```
 project_root/
 ├── config.yaml          # Project configuration (managed automatically)
-├── agent.md             # This file — agent instructions
+├── .agents/skills/      # Agent skills (e.g., this SKILL.md file)
+├── automl.log           # Logs for MCP tool calls and CLI commands
 ├── agentplan.md         # Agent's working plan (created via manage_plan)
 ├── pipeline/            # ML pipeline stage files
 ├── utils/               # Shared utility modules

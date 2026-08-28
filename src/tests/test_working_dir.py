@@ -14,6 +14,7 @@ def test_init_creates_structure(tmp_path: Path):
     assert (root / "utils").exists()
     assert (root / "pipeline").exists()
     assert (root / "config.yaml").exists()
+    assert (root / ".agents/skills/automl-workflow/SKILL.md").exists()
 
 
 def test_init_with_existing_directory(tmp_path: Path):

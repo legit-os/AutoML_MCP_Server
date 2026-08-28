@@ -883,5 +883,33 @@ def mcp_start(
 # ── end mcp subcommand group ────────────────────────────────────────
 
 
+original_app = app
+def wrapped_app(*args, **kwargs):
+    import time
+    import sys
+    from dist_automl.managers.logger import get_project_logger
+    import typer
+    start_time = time.perf_counter()
+    command = " ".join(sys.argv[1:])
+    try:
+        original_app(*args, **kwargs)
+        duration = (time.perf_counter() - start_time) * 1000
+        logger = get_project_logger()
+        if logger:
+            logger.log_cli_command(command, {}, duration_ms=duration)
+    except SystemExit as e:
+        duration = (time.perf_counter() - start_time) * 1000
+        logger = get_project_logger()
+        if logger:
+            logger.log_cli_command(command, {}, exit_code=e.code, duration_ms=duration)
+        raise
+    except Exception as e:
+        duration = (time.perf_counter() - start_time) * 1000
+        logger = get_project_logger()
+        if logger:
+            logger.log_cli_command(command, {}, exit_code=1, error=e, duration_ms=duration)
+        raise
+app = wrapped_app
+
 if __name__ == "__main__":
     app()
