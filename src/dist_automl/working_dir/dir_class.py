@@ -65,6 +65,7 @@ class WorkingDirectory:
         "automl.log",
         "*.log",
         "agentplan.md",
+        ".agents/",
         "__pycache__/",
         "*.py[cod]",
         ".ipynb_checkpoints/",
