@@ -693,7 +693,7 @@ def run_background_task(command: str, name: str, background: bool = True, cwd: s
     import time
     try:
         if cwd is None:
-            cwd = str(wd.project_root)
+            cwd = str(wd.root)
             
         res = PM2Manager.start(command, name, cwd)
         if background:
