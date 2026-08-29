@@ -188,9 +188,9 @@ def test_transaction_rollback_on_invalid_path(tmp_path: Path):
     root = tmp_path / "project"
     wd = WorkingDirectory(root)
 
-    bad_path = Path("analysis/train.txt")  
+    bad_path = Path("../train.py")  
 
     with pytest.raises(ValueError):
-        wd.update_analysis(name="train", path=bad_path)
+        wd.update_utils(name="train", path=bad_path)
 
-    assert not (root / "analysis/train.txt").exists()
+    assert not (root / "../train.py").exists()

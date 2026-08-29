@@ -16,9 +16,4 @@ src/dist_automl/managers/all_projects.json
 src/dist_automl/managers/current_project.txt
 src/dist_automl/managers/current_project_root.txt
 
-# Dashboard related
-dashboard_maker/
-dashboard_maker_reflex/
-src/dist_automl/dashboard_maker/
-src/dist_automl/dashboard_maker_reflex/
-src/dist_automl/dashboard_maker_custom/frontend/node_modules/
+

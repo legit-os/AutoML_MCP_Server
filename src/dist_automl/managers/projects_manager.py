@@ -105,6 +105,8 @@ class ProjectJSON:
             if not overwrite:
                 raise ValueError(f"Project '{name}' already exists. Use overwrite=True.")
             
+            _ = WorkingDirectory(project_root=root)
+            
             self.project_config.projects[idx] = ProjectDict(
                 name=name,
                 root=root,
