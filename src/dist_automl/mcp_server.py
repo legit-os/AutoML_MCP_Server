@@ -209,6 +209,65 @@ def read_file(path: str, start_line: int = None, end_line: int = None):
         return f"Error reading file: {str(e)}"
 
 
+@server.tool(tags={serverstate.file})
+@logged_tool
+def edit_file(path: str, content: str, start_line: int = None, end_line: int = None):
+    """
+    Edit a file by replacing a specific line range with new content, or create a new file.
+    
+    Args:
+        path: Path to the file relative to project root.
+        content: The new content to insert.
+        start_line: The first line to replace (1-indexed). If omitted, overwrites the entire file.
+        end_line: The last line to replace (1-indexed). Required if start_line is provided.
+        
+    Returns:
+        A success message or an error message.
+    """
+    try:
+        abs_path = (cwp_path / path).resolve()
+        # Security check: must be inside project root
+        try:
+            abs_path.relative_to(cwp_path.resolve())
+        except ValueError:
+            return "Error: Path must be inside the project root."
+        
+        if start_line is None and end_line is None:
+            # Overwrite or create new file
+            abs_path.parent.mkdir(parents=True, exist_ok=True)
+            abs_path.write_text(content, encoding="utf-8")
+            return f"Successfully wrote to {path}."
+        
+        if not abs_path.exists():
+            return f"Error: File '{path}' does not exist. Cannot edit specific lines."
+            
+        if start_line is None or end_line is None:
+            return "Error: Both start_line and end_line must be provided to edit a specific range."
+            
+        lines = abs_path.read_text(encoding="utf-8").splitlines()
+        total = len(lines)
+        
+        start = max(1, start_line)
+        end = min(total, end_line)
+        
+        if start > total + 1:
+            return f"Error: start_line {start} is beyond the end of the file ({total} lines)."
+        if start > end:
+            return f"Error: start_line ({start}) cannot be greater than end_line ({end})."
+            
+        # Replace the range [start-1:end] with the new content
+        new_lines = content.splitlines()
+        lines[start - 1 : end] = new_lines
+        
+        # Write back, ensure trailing newline
+        abs_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return f"Successfully edited lines {start}-{end} in {path}."
+        
+    except Exception as e:
+        return f"Error editing file: {str(e)}"
+
+
+
 @server.tool(tags={serverstate.info})
 @logged_tool
 def ls_dir(path: str = ".", depth: int = 1):
@@ -274,7 +333,8 @@ def write_pipeline_element(stage: str, name: str,
                            content: str = None,
                            depends_on:list[str] = None,
                            metadata: dict = None,
-                           overwrite: bool = False ):
+                           overwrite: bool = False,
+                           file_path: str = None):
     '''
     Create a file that works in the main pipeline, write the content for the file in
     such a way so that it can be used by importing a function or class from the 
@@ -283,10 +343,12 @@ def write_pipeline_element(stage: str, name: str,
         stage: represents the stage of the machine learning cycle for which the file works
         name: name of the this process in the pipeline (must be unique)
         depends_on: accepts strings like 'utils.helper' or 'preprocessing.col_mixer' assuming that the names provided exist and are in the config file
+        file_path: Optional custom path for the file. If not provided, defaults to pipeline/{name}.py
     '''
     try:
+        path_obj = Path(file_path) if file_path else Path(f"pipeline/{name}.py")
         wd.update_pipeline_element(stage=stage,name=name,content=content,
-                                   path=Path(f"pipeline/{name}.py"),
+                                   path=path_obj,
                                    depends_on=depends_on,
                                    metadata=metadata,
                                    overwrite=overwrite)
@@ -296,10 +358,11 @@ def write_pipeline_element(stage: str, name: str,
 
 @server.tool(tags={serverstate.file})
 @logged_tool
-def write_util(name: str, content: str, overwrite : bool = False, metadata: dict = None):
-    "Write helper files for the pipeline"
+def write_util(name: str, content: str, overwrite : bool = False, metadata: dict = None, file_path: str = None):
+    "Write helper files for the pipeline. Optionally specify a custom file_path."
     try:
-        wd.update_utils(name=name, path=Path(f"utils/{name}.py"),
+        path_obj = Path(file_path) if file_path else Path(f"utils/{name}.py")
+        wd.update_utils(name=name, path=path_obj,
                         metadata=metadata, content=content,overwrite=overwrite)
         return "Updated, you can view project info to confirm"
     except Exception as e:

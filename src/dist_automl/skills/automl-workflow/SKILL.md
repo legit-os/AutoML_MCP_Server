@@ -15,6 +15,8 @@ description: Guidelines, best practices, and instructions for managing end-to-en
 
 ## File Writing Guidelines
 
+- **Flexible File Structures**: You can create arbitrary file structures and use custom extensions (like `.txt`, `.json`, tests, etc.) by passing the optional `file_path` argument to `write_pipeline_element` and `write_util`. If omitted, they default to the `pipeline/` and `utils/` directories.
+- **Editing Files directly:** The `edit_file` tool lets you read and write to specific line ranges (or overwrite/create entire untracked files like `.txt`, tests, config files) without altering the project's tracked config schema. Use this when you don't need the file to be a registered ML component.
 - **Pipeline files** should be modular and reusable. Use `sys.argv` to accept command-line arguments so files can be run independently or composed together.
 - **Utility files** are shared helpers — keep them focused and well-documented so pipeline stages can import from them.
 - **Use `depends_on`** when writing pipeline elements to declare which other elements or utils they rely on. This keeps the dependency graph explicit.

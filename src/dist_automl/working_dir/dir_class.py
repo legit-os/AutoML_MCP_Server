@@ -134,7 +134,7 @@ class WorkingDirectory:
 
 
 
-    def _validate_relative_path(self, path: Path, expected_root: str) -> Path:
+    def _validate_relative_path(self, path: Path, expected_root: Optional[str] = None) -> Path:
         if not isinstance(path, Path):
             raise TypeError("path must be a pathlib.Path")
 
@@ -151,13 +151,11 @@ class WorkingDirectory:
         if ".." in relative_path.parts:
             raise ValueError("Path traversal outside project root is not allowed")
 
-        if relative_path.suffix != ".py":
-            raise ValueError("Only .py files are allowed")
-
         parts = relative_path.parts
         
-        if not parts or parts[0] != expected_root:
-            raise ValueError(f"Path must start with '{expected_root}/'")
+        if expected_root is not None:
+            if not parts or parts[0] != expected_root:
+                raise ValueError(f"Path must start with '{expected_root}/'")
 
         return relative_path
     
@@ -342,7 +340,7 @@ class WorkingDirectory:
         content: str = "",
         overwrite: bool = True,
     ) -> None:
-        relative_path = self._validate_relative_path(path, "analysis")
+        relative_path = self._validate_relative_path(path)
 
         try:
             with self._manager:
@@ -426,7 +424,7 @@ class WorkingDirectory:
     ) -> None:
         
 
-        relative_path = self._validate_relative_path(path, "pipeline")
+        relative_path = self._validate_relative_path(path)
 
         try:
             with self._manager:
