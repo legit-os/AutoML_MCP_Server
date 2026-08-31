@@ -768,12 +768,13 @@ def read_dashboard_items(
 
 @server.tool(tags={serverstate.bg})
 @logged_tool
-def run_background_task(command: str, name: str, background: bool = True, cwd: str = None):
+def run_background_task(command: str, name: str, background: bool = True, cwd: str = None, lines: int = 50):
     """
     Start a background command or script via PM2. 
     If 'background' is True, returns immediately after starting. 
     If 'background' is False, blocks and waits for the task to finish before returning its status.
     'cwd' specifies the working directory. Defaults to the active project root if not provided.
+    'lines' specifies the number of trailing log lines to return in blocking mode (default 50).
     """
     import time
     try:
@@ -792,7 +793,7 @@ def run_background_task(command: str, name: str, background: bool = True, cwd: s
             time.sleep(2)
             
         final_status = PM2Manager.status(name)
-        logs = PM2Manager.logs(name, lines=20)
+        logs = PM2Manager.logs(name, lines=lines)
         return f"Task '{name}' finished with status: {final_status.get('status')}.\nLogs:\n{logs}"
     except Exception as e:
         return f"Error: {e}"
@@ -800,16 +801,27 @@ def run_background_task(command: str, name: str, background: bool = True, cwd: s
 
 @server.tool(tags={serverstate.bg})
 @logged_tool
-def manage_background_task(action: Literal["stop", "delete", "logs", "status"], name: str, lines: int = 50):
+def manage_background_task(
+    action: Literal["list", "stop", "delete", "logs", "status"],
+    name: str = None,
+    lines: int = 50,
+    all_projects: bool = False,
+):
     """
-    Manage an existing PM2 background task.
+    Manage PM2 background tasks.
     Actions:
-    - stop: stop a running task.
-    - delete: delete a task completely.
-    - logs: fetch recent stdout/stderr lines (up to 'lines', default 50).
-    - status: check if the task is running and its resource usage.
+    - list: list running background tasks. Defaults to current project tasks unless 'all_projects' is True.
+    - stop: stop a running task (requires 'name').
+    - delete: delete a task completely (requires 'name').
+    - logs: fetch recent stdout/stderr lines (requires 'name', specify 'lines' to retrieve trailing lines, default 50).
+    - status: check if the task is running and its resource usage (requires 'name').
     """
     try:
+        if action == "list":
+            cwd_filter = None if all_projects else str(wd.root)
+            return PM2Manager.list_tasks(cwd=cwd_filter)
+        if not name:
+            return f"Error: 'name' is required for action '{action}'."
         if action == "stop":
             return PM2Manager.stop(name)
         elif action == "delete":

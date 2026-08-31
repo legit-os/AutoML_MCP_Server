@@ -880,7 +880,275 @@ def mcp_start(
     )
 
 
-# ── end mcp subcommand group ────────────────────────────────────────
+# ── bg / task subcommand group ──────────────────────────────────────
+from dist_automl.managers.pm2_manager import PM2Manager
+
+bg_app = typer.Typer(
+    name="bg",
+    help="Manage and monitor background processes and PM2 tasks.",
+    invoke_without_command=True,
+)
+app.add_typer(bg_app)
+
+task_app = typer.Typer(
+    name="task",
+    help="Alias for 'bg': Manage and monitor background processes.",
+    invoke_without_command=True,
+)
+app.add_typer(task_app)
+
+
+def _format_memory(mem_bytes: int) -> str:
+    if not mem_bytes:
+        return "0 MB"
+    mb = mem_bytes / (1024 * 1024)
+    return f"{mb:.1f} MB"
+
+
+def _format_status(status: str) -> str:
+    if status in ("online", "running"):
+        return f"[bold green]{status}[/bold green]"
+    elif status in ("launching", "restarting"):
+        return f"[bold yellow]{status}[/bold yellow]"
+    elif status in ("stopped", "errored", "stopping"):
+        return f"[bold red]{status}[/bold red]"
+    return f"[dim]{status}[/dim]"
+
+
+def _show_tasks_table(tasks: list[dict], show_cwd: bool = False, title: str = "Background Tasks"):
+    if not tasks:
+        console.print("[warning]No background tasks found.[/warning]")
+        return
+
+    table = Table(title=title, border_style="blue", header_style="bold cyan")
+    table.add_column("ID", justify="center", style="dim")
+    table.add_column("Name", style="highlight")
+    table.add_column("Status", justify="center")
+    table.add_column("CPU", justify="right", style="info")
+    table.add_column("Memory", justify="right", style="info")
+    table.add_column("Restarts", justify="center", style="dim")
+    if show_cwd:
+        table.add_column("Directory", style="dim")
+
+    for t in tasks:
+        row = [
+            str(t.get("id", "—")),
+            str(t.get("name", "—")),
+            _format_status(str(t.get("status", "unknown"))),
+            f"{t.get('cpu', 0)}%",
+            _format_memory(t.get("memory", 0)),
+            str(t.get("restarts", 0)),
+        ]
+        if show_cwd:
+            row.append(str(t.get("cwd", "—")))
+        table.add_row(*row)
+
+    console.print(table)
+
+
+def _run_list_tasks(all_projects: bool):
+    if not PM2Manager.check_installed():
+        console.print("[error]PM2 is not installed.[/error] Install it globally via [info]npm install -g pm2[/info].")
+        return
+
+    pr = getcurrentProject()
+    cwd_filter = None
+    title = "All Background Tasks" if all_projects else "Project Background Tasks"
+
+    if not all_projects:
+        if pr is not None:
+            cwd_filter = str(pr.root)
+            title = f"Background Tasks for Project: [highlight]{pr.name}[/highlight]"
+        else:
+            cwd_filter = str(Path.cwd())
+            title = f"Background Tasks (cwd: {Path.cwd().name})"
+
+    tasks = PM2Manager.list_tasks(cwd=cwd_filter)
+    _show_tasks_table(tasks, show_cwd=all_projects, title=title)
+
+
+def _run_logs(name: str, lines: int = 50, follow: bool = False):
+    if not PM2Manager.check_installed():
+        console.print("[error]PM2 is not installed.[/error] Install it globally via [info]npm install -g pm2[/info].")
+        return
+
+    if follow:
+        console.print(f"[info]Connecting live logs for task '[highlight]{name}[/highlight]' (Press Ctrl+C to disconnect)...[/info]\n")
+        PM2Manager.stream_logs(name, lines=lines)
+    else:
+        logs_output = PM2Manager.logs(name, lines=lines)
+        if not logs_output:
+            console.print(f"[warning]No logs found for task '{name}'.[/warning]")
+            return
+        console.print(Panel(
+            logs_output,
+            title=f"[bold cyan]Logs for '{name}' (last {lines} lines)[/bold cyan]",
+            border_style="blue",
+        ))
+
+
+def _run_status(name: str):
+    info = PM2Manager.status(name)
+    if "error" in info:
+        console.print(f"[error]Error:[/error] {info['error']}")
+        return
+
+    table = Table(title=f"Task Status: {name}", border_style="blue", header_style="bold cyan")
+    table.add_column("Property", style="highlight")
+    table.add_column("Value", style="info")
+
+    table.add_row("Name", str(info.get("name", "—")))
+    table.add_row("PM2 ID", str(info.get("id", "—")))
+    table.add_row("PID", str(info.get("pid", "—")))
+    table.add_row("Status", _format_status(str(info.get("status", "unknown"))))
+    table.add_row("CPU", f"{info.get('cpu', 0)}%")
+    table.add_row("Memory", _format_memory(info.get("memory", 0)))
+    table.add_row("Restarts", str(info.get("restarts", 0)))
+    table.add_row("Directory", str(info.get("cwd", "—")))
+
+    console.print(table)
+
+
+def _run_stop(name: str):
+    res = PM2Manager.stop(name)
+    console.print(res)
+
+
+def _run_delete(name: str):
+    res = PM2Manager.delete(name)
+    console.print(res)
+
+
+def _run_start(command: str, name: str, cwd: Optional[str] = None):
+    if not cwd:
+        pr = getcurrentProject()
+        if pr is not None:
+            cwd = str(pr.root)
+        else:
+            cwd = str(Path.cwd())
+    res = PM2Manager.start(command, name, cwd)
+    console.print(res)
+
+
+@bg_app.callback(invoke_without_command=True)
+def bg_default(
+    ctx: typer.Context,
+    all_projects: Annotated[bool, typer.Option("--all", "-a", help="Show tasks across all AutoML projects")] = False,
+):
+    """List background tasks (default when no subcommand is given)."""
+    if ctx.invoked_subcommand is not None:
+        return
+    print_header()
+    _run_list_tasks(all_projects)
+
+
+@bg_app.command(name="list", help="List running background tasks")
+def bg_list_cmd(
+    all_projects: Annotated[bool, typer.Option("--all", "-a", help="Show tasks across all AutoML projects")] = False,
+):
+    """List running background tasks (-a / --all to list across all projects)."""
+    print_header()
+    _run_list_tasks(all_projects)
+
+
+@bg_app.command(name="logs", help="View or stream logs from a background task")
+def bg_logs_cmd(
+    name: Annotated[str, typer.Argument(help="Name of the task")],
+    lines: Annotated[int, typer.Option("--lines", "-n", help="Number of trailing lines to view")] = 50,
+    follow: Annotated[bool, typer.Option("--follow", "-f", help="Stream / connect live logs in terminal")] = False,
+):
+    """View previous logs or stream live logs with -f / --follow."""
+    _run_logs(name, lines, follow)
+
+
+@bg_app.command(name="status", help="Show detailed status and resource usage of a task")
+def bg_status_cmd(name: Annotated[str, typer.Argument(help="Name of the task")]):
+    """Show detailed task status."""
+    _run_status(name)
+
+
+@bg_app.command(name="stop", help="Stop a running background task")
+def bg_stop_cmd(name: Annotated[str, typer.Argument(help="Name of the task to stop")]):
+    """Stop a task."""
+    _run_stop(name)
+
+
+@bg_app.command(name="delete", help="Delete a background task completely")
+def bg_delete_cmd(name: Annotated[str, typer.Argument(help="Name of the task to delete")]):
+    """Delete a task."""
+    _run_delete(name)
+
+
+@bg_app.command(name="start", help="Start a new background task")
+def bg_start_cmd(
+    command: Annotated[str, typer.Argument(help="Command to execute in background")],
+    name: Annotated[str, typer.Option("--name", "-n", help="Unique name for the task")],
+    cwd: Annotated[Optional[str], typer.Option("--cwd", "-d", help="Working directory for the command")] = None,
+):
+    """Start a command in the background via PM2."""
+    _run_start(command, name, cwd)
+
+
+@task_app.callback(invoke_without_command=True)
+def task_default(
+    ctx: typer.Context,
+    all_projects: Annotated[bool, typer.Option("--all", "-a", help="Show tasks across all AutoML projects")] = False,
+):
+    """List background tasks (default when no subcommand is given)."""
+    if ctx.invoked_subcommand is not None:
+        return
+    print_header()
+    _run_list_tasks(all_projects)
+
+
+@task_app.command(name="list", help="List running background tasks")
+def task_list_cmd(
+    all_projects: Annotated[bool, typer.Option("--all", "-a", help="Show tasks across all AutoML projects")] = False,
+):
+    """List running background tasks (-a / --all to list across all projects)."""
+    print_header()
+    _run_list_tasks(all_projects)
+
+
+@task_app.command(name="logs", help="View or stream logs from a background task")
+def task_logs_cmd(
+    name: Annotated[str, typer.Argument(help="Name of the task")],
+    lines: Annotated[int, typer.Option("--lines", "-n", help="Number of trailing lines to view")] = 50,
+    follow: Annotated[bool, typer.Option("--follow", "-f", help="Stream / connect live logs in terminal")] = False,
+):
+    """View previous logs or stream live logs with -f / --follow."""
+    _run_logs(name, lines, follow)
+
+
+@task_app.command(name="status", help="Show detailed status and resource usage of a task")
+def task_status_cmd(name: Annotated[str, typer.Argument(help="Name of the task")]):
+    """Show detailed task status."""
+    _run_status(name)
+
+
+@task_app.command(name="stop", help="Stop a running background task")
+def task_stop_cmd(name: Annotated[str, typer.Argument(help="Name of the task to stop")]):
+    """Stop a task."""
+    _run_stop(name)
+
+
+@task_app.command(name="delete", help="Delete a background task completely")
+def task_delete_cmd(name: Annotated[str, typer.Argument(help="Name of the task to delete")]):
+    """Delete a task."""
+    _run_delete(name)
+
+
+@task_app.command(name="start", help="Start a new background task")
+def task_start_cmd(
+    command: Annotated[str, typer.Argument(help="Command to execute in background")],
+    name: Annotated[str, typer.Option("--name", "-n", help="Unique name for the task")],
+    cwd: Annotated[Optional[str], typer.Option("--cwd", "-d", help="Working directory for the command")] = None,
+):
+    """Start a command in the background via PM2."""
+    _run_start(command, name, cwd)
+
+
+# ── end bg / task subcommand group ──────────────────────────────────
 
 
 original_app = app

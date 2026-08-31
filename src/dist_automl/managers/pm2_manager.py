@@ -82,6 +82,61 @@ class PM2Manager:
         return res.stdout.strip() or res.stderr.strip()
 
     @staticmethod
+    def stream_logs(name: str, lines: int = 50) -> None:
+        try:
+            subprocess.run(["pm2", "logs", name, "--lines", str(lines)], shell=True)
+        except KeyboardInterrupt:
+            pass
+
+    @staticmethod
+    def list_tasks(cwd: Optional[str] = None) -> list[Dict[str, Any]]:
+        from pathlib import Path
+        res = PM2Manager._run_cmd(["pm2", "jlist"])
+        if res.returncode != 0:
+            return []
+
+        try:
+            processes = json.loads(res.stdout)
+            tasks = []
+            target_cwd_path = None
+            if cwd:
+                try:
+                    target_cwd_path = Path(cwd).resolve()
+                except Exception:
+                    target_cwd_path = None
+
+            for p in processes:
+                pm_env = p.get("pm2_env", {})
+                pm_cwd = pm_env.get("pm_cwd", "")
+                
+                # Filter by cwd if specified
+                if target_cwd_path and pm_cwd:
+                    try:
+                        p_path = Path(pm_cwd).resolve()
+                        if p_path != target_cwd_path and target_cwd_path not in p_path.parents:
+                            continue
+                    except Exception:
+                        pass
+                elif target_cwd_path and not pm_cwd:
+                    continue
+
+                tasks.append({
+                    "id": p.get("pm_id"),
+                    "name": p.get("name"),
+                    "pid": p.get("pid"),
+                    "status": pm_env.get("status", "unknown"),
+                    "cpu": p.get("monit", {}).get("cpu", 0),
+                    "memory": p.get("monit", {}).get("memory", 0),
+                    "restarts": pm_env.get("restart_time", 0),
+                    "cwd": pm_cwd,
+                    "created_at": pm_env.get("created_at"),
+                    "uptime": pm_env.get("pm_uptime"),
+                })
+            return tasks
+        except json.JSONDecodeError:
+            return []
+
+    @staticmethod
     def status(name: str) -> Dict[str, Any]:
         res = PM2Manager._run_cmd(["pm2", "jlist"])
         if res.returncode != 0:
@@ -91,12 +146,17 @@ class PM2Manager:
             processes = json.loads(res.stdout)
             for p in processes:
                 if p.get("name") == name:
+                    pm_env = p.get("pm2_env", {})
                     return {
                         "name": p.get("name"),
-                        "status": p.get("pm2_env", {}).get("status", "unknown"),
+                        "id": p.get("pm_id"),
+                        "pid": p.get("pid"),
+                        "status": pm_env.get("status", "unknown"),
                         "cpu": p.get("monit", {}).get("cpu", 0),
                         "memory": p.get("monit", {}).get("memory", 0),
-                        "restarts": p.get("pm2_env", {}).get("restart_time", 0)
+                        "restarts": pm_env.get("restart_time", 0),
+                        "cwd": pm_env.get("pm_cwd", ""),
+                        "uptime": pm_env.get("pm_uptime"),
                     }
             return {"error": f"Task '{name}' not found."}
         except json.JSONDecodeError:

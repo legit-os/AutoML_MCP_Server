@@ -68,6 +68,7 @@ The CLI is used by the human user to manage projects and track state. Key comman
 | `automl mcp` | Prints the JSON configuration for your MCP client. |
 | `automl mcp start` | Starts the FastMCP server over HTTP. |
 | `automl track <type>` | Manually syncs or registers existing files into the project configuration. |
+| `automl bg / automl task` | Manage and monitor background processes (e.g. `list`, `logs`, `status`, `stop`). |
 
 ### 2. The MCP Server Tools
 The MCP Server exposes these tools directly to the AI agent, allowing it to manipulate the project dynamically. 
@@ -89,7 +90,7 @@ If you use a agent that uses an extra tool calling agent or dedicated tool like 
 | `read_dashboard_items` | Allows the agent to read back the data (lists, dicts, DataFrames) it previously plotted on the dashboard. |
 | `update_project_metadata` | Updates global project metadata (author, version, etc.). |
 | `run_background_task` | Launches a terminal command or script securely via PM2. Supports both blocking and non-blocking background execution. |
-| `manage_background_task` | Stops, deletes, or checks the status and logs of a running PM2 task. |
+| `manage_background_task` | Lists, stops, deletes, or checks the status and logs of a running PM2 task. |
 
 
 This server doesn't have a generic synchronous tool to run foreground CLI commands since many agents restrict that behaviour; you may need to use your agent provider's native MCP server for running short commands (like antigravity and claude can run commands from their own capabilities). However, the background task tools provided above allow safe, asynchronous execution of long-running operations.
