@@ -30,7 +30,10 @@ server = FastMCP(
                  
                  IMPORTANT: At the start of every session, read the '.agents/skills/automl-workflow/SKILL.md' file in 
                  the project root using the read_file tool. It contains project-specific 
-                 best practices and guidelines you must follow.
+                 best practices and guidelines you must follow. Also inspect '.agents/skills/' for domain-specific 
+                 guidance (e.g. training-best-practices, dataset-diagnostics, ml-systems-optimization,
+                 tabular-ml, neural-nets, nlp, generative-llms, audio-speech, 
+                 computer-vision, embeddings-retrieval) for relevant task instructions and pipeline discipline.
                  """
                  )
 

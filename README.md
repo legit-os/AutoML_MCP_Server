@@ -94,3 +94,30 @@ If you use a agent that uses an extra tool calling agent or dedicated tool like 
 
 
 This server doesn't have a generic synchronous tool to run foreground CLI commands since many agents restrict that behaviour; you may need to use your agent provider's native MCP server for running short commands (like antigravity and claude can run commands from their own capabilities). However, the background task tools provided above allow safe, asynchronous execution of long-running operations.
+
+---
+
+### 3. Agent Skills & Domain Knowledge Base (`.agents/skills/`)
+
+Whenever you run `automl init`, AutoML MCP automatically generates an orchestrated library of **11 specialized skills** directly into your project's `.agents/skills/` directory.
+
+The master skill—[`automl-workflow`](file:///.agents/skills/automl-workflow/SKILL.md)—acts as the primary entry point and orchestrator, instructing the agent to automatically activate and cross-reference the relevant domain and training discipline skills so the model never operates blindly:
+
+#### Universal Training & Data Disciplines (Always Active)
+| Skill | Primary Purpose & Disciplines Covered |
+| :--- | :--- |
+| **`automl-workflow`** | **Master Orchestrator**: Session entrypoint, MCP tool usage guidelines, planning discipline (`agentplan.md`), modular pipeline file design, and automatic skill routing. |
+| **`training-best-practices`** | **Universal Training Discipline**: Scientific ML loop, feasibility gates, baselines first, 5 mandatory validation stages (smoke test $\to$ tiny-set overfit $\to$ short diagnostic $\to$ full run $\to$ targeted retry), TensorBoard telemetry, live stop/retry rules, automatic diagnosis matrix, and 20 non-negotiable agent rules. |
+| **`dataset-diagnostics`** | **Data Quality & Leakage Prevention**: Pre-training data audit, hard leakage gates, group-aware splitting (speaker, user, device, temporal), label quality quarantine, data slice monitoring ($M_s$ subgroup reporting), and out-of-distribution shift testing. |
+| **`ml-systems-optimization`** | **Systems Profiling & Provenance**: Step time breakdown ($T_{\text{data}} + T_{\text{forward}} + T_{\text{backward}} + T_{\text{optimizer}}$), eliminating dataloader bottlenecks, deployment constraints as constrained optimization, HPO early pruning, checkpoint lifecycle, and experiment reproducibility. |
+
+#### Domain-Specific Task Skills (Activated by Task Modality)
+| Skill | Primary Purpose & Disciplines Covered |
+| :--- | :--- |
+| **`tabular-ml`** | **Tabular, Trees & Forecasting**: Feature distributions, target leakage prevention, GBDTs (LightGBM, XGBoost, CatBoost), classification imbalance/calibration, regression residuals (heteroscedasticity), and time series forecasting ($MAE(h)$ horizon error). |
+| **`neural-nets`** | **Deep Learning & PyTorch Modules**: Capacity budgets, 5-question hypothesis-driven architecture selection rule, AdamW with warmup/cosine schedules, numerical stability safeguards (NaN/Inf, GradScaler), gradient clipping telemetry, and INT8 quantization. |
+| **`nlp`** | **NLP & Sequence Tasks**: Subword tokenization, dynamic batch padding, text classification, **Token Classification & Named Entity Recognition (NER)** (BIO alignment, seqeval metrics), **Extractive QA & Span Selection** (start/end logits), DeBERTa/ModernBERT, and ONNX serving. |
+| **`generative-llms`** | **LLMs & Generative Models**: Instruction tuning (ChatML format), prompt token loss masking (`-100`), QLoRA 4-bit (NF4), FlashAttention-2, SFT loss trap diagnostics, capability regression, decoding controls, and vLLM/Ollama serving. |
+| **`computer-vision`** | **Vision, Detection & Segmentation**: Image corruptions, augmentations (MixUp/CutMix), classification visual inspection (Grad-CAM), object detection (mAP50/75, scale AP: $AP_s, AP_m, AP_l$), segmentation (mIoU/Dice, 4-panel visual dashboard), and TensorRT/ONNX. |
+| **`audio-speech`** | **Audio, Speech (ASR) & KWS**: 16kHz audio standardization, Log-Mel spectrograms, SpecAugment, ASR with WER error breakdown (Substitution, Insertion, Deletion), Keyword Spotting (FAR, FRR, EER, false alarms per hour), and Silero VAD gating. |
+| **`embeddings-retrieval`** | **Dense Retrieval & Metric Learning**: Bi-encoders, cross-encoders, in-batch & hard negative mining, InfoNCE/Triplet losses, Recall@1/5/10, similarity margin violation rate, representation collapse & isotropy diagnostics (SVD decay), and HNSW vector search. |

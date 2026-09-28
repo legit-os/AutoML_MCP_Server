@@ -15,6 +15,16 @@ def test_init_creates_structure(tmp_path: Path):
     assert (root / "pipeline").exists()
     assert (root / "config.yaml").exists()
     assert (root / ".agents/skills/automl-workflow/SKILL.md").exists()
+    assert (root / ".agents/skills/training-best-practices/SKILL.md").exists()
+    assert (root / ".agents/skills/dataset-diagnostics/SKILL.md").exists()
+    assert (root / ".agents/skills/ml-systems-optimization/SKILL.md").exists()
+    assert (root / ".agents/skills/tabular-ml/SKILL.md").exists()
+    assert (root / ".agents/skills/neural-nets/SKILL.md").exists()
+    assert (root / ".agents/skills/nlp/SKILL.md").exists()
+    assert (root / ".agents/skills/generative-llms/SKILL.md").exists()
+    assert (root / ".agents/skills/audio-speech/SKILL.md").exists()
+    assert (root / ".agents/skills/computer-vision/SKILL.md").exists()
+    assert (root / ".agents/skills/embeddings-retrieval/SKILL.md").exists()
 
 
 def test_init_with_existing_directory(tmp_path: Path):

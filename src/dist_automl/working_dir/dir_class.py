@@ -80,17 +80,25 @@ class WorkingDirectory:
         self._ensure_skills()
 
     def _ensure_skills(self) -> None:
-        """Create the .agents/skills/automl-workflow/SKILL.md if it doesn't exist."""
-        skill_dir = self._root / ".agents" / "skills" / "automl-workflow"
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        target = skill_dir / "SKILL.md"
-        if target.exists():
-            return
-
+        """Create and populate .agents/skills/ with bundled AutoML and data science skills."""
         import shutil
-        template = Path(__file__).resolve().parent.parent / "skills" / "automl-workflow" / "SKILL.md"
-        if template.exists():
-            shutil.copy2(template, target)
+
+        skills_template_dir = Path(__file__).resolve().parent.parent / "skills"
+        target_skills_dir = self._root / ".agents" / "skills"
+        target_skills_dir.mkdir(parents=True, exist_ok=True)
+
+        if skills_template_dir.exists() and skills_template_dir.is_dir():
+            for skill_dir in skills_template_dir.iterdir():
+                if skill_dir.is_dir():
+                    dest_dir = target_skills_dir / skill_dir.name
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    for item in skill_dir.iterdir():
+                        dest_item = dest_dir / item.name
+                        if not dest_item.exists():
+                            if item.is_file():
+                                shutil.copy2(item, dest_item)
+                            elif item.is_dir():
+                                shutil.copytree(item, dest_item)
 
     def _ensure_gitignore(self) -> None:
         """Create or update .gitignore with essential ignore entries."""
